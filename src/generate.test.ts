@@ -89,6 +89,12 @@ describe("generate", () => {
     expect(output.errors).toBeUndefined();
     expect(output.files).toHaveLength(1);
     expect(output.files?.[0]?.path).toBe("client.go");
+    expect(output.files?.[0]?.content).toContain(
+      'vdltypes "fixture/internal/types"',
+    );
+    expect(output.files?.[0]?.content).toContain(
+      "vdltypes.MessagesSendMessageInput",
+    );
   });
 
   it("generates the server target", () => {
@@ -103,6 +109,31 @@ describe("generate", () => {
     expect(output.errors).toBeUndefined();
     expect(output.files).toHaveLength(1);
     expect(output.files?.[0]?.path).toBe("server.go");
+    expect(output.files?.[0]?.content).toContain(
+      'vdltypes "fixture/internal/types"',
+    );
+    expect(output.files?.[0]?.content).toContain(
+      "vdltypes.MessagesSendMessageInput",
+    );
+  });
+
+  it("generates without types import when typesImport is empty", () => {
+    const input = createBaseInput();
+    const output = generate({
+      ...input,
+      options: {
+        ...input.options,
+        target: "client",
+        typesImport: "",
+      },
+    });
+
+    expect(output.errors).toBeUndefined();
+    expect(output.files?.[0]?.content).not.toContain('vdltypes "');
+    expect(output.files?.[0]?.content).toContain("MessagesSendMessageInput");
+    expect(output.files?.[0]?.content).not.toContain(
+      "vdltypes.MessagesSendMessageInput",
+    );
   });
 
   it("uses Void for operations that omit input and output", () => {
