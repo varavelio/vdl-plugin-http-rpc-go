@@ -27,7 +27,7 @@ export function generateServerFile(
     renderCatalog(context),
     renderCoreRuntime(),
     SERVER_RUNTIME,
-    renderServerServices(context.services),
+    renderServerServices(context),
   ]);
 
   return createGoFile("server.go", "", body);
@@ -42,6 +42,7 @@ function renderServerImports(context: GeneratorContext): string {
       (operation) => operation.inputTypeName || operation.outputTypeName,
     ),
   );
+  const hasExternalTypesImport = context.options.typesImport.length > 0;
 
   const g = newGenerator().withTabs();
   g.line("import (");
@@ -53,7 +54,7 @@ function renderServerImports(context: GeneratorContext): string {
     g.line('"net/http"');
     g.line('"sync"');
     g.line('"time"');
-    if (needsTypesImport) {
+    if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
     }
@@ -65,14 +66,19 @@ function renderServerImports(context: GeneratorContext): string {
 /**
  * Renders all service registries and typed operation adapters for the server target.
  */
-function renderServerServices(services: ServiceDescriptor[]): string {
-  return services.map((service) => renderServerService(service)).join("\n\n");
+function renderServerServices(context: GeneratorContext): string {
+  return context.services
+    .map((service) => renderServerService(service, context))
+    .join("\n\n");
 }
 
 /**
  * Renders the generated server API for a single RPC service.
  */
-function renderServerService(service: ServiceDescriptor): string {
+function renderServerService(
+  service: ServiceDescriptor,
+  context: GeneratorContext,
+): string {
   const rpcStructName = `server${service.goName}RPC`;
   const procsStructName = `server${service.goName}Procs`;
   const streamsStructName = `server${service.goName}Streams`;
@@ -176,13 +182,13 @@ function renderServerService(service: ServiceDescriptor): string {
   for (const operation of service.procedures) {
     g.break();
     g.break();
-    g.raw(renderServerProcedure(service, operation));
+    g.raw(renderServerProcedure(service, operation, context));
   }
 
   for (const operation of service.streams) {
     g.break();
     g.break();
-    g.raw(renderServerStream(service, operation));
+    g.raw(renderServerStream(service, operation, context));
   }
 
   return g.toString();
@@ -194,14 +200,15 @@ function renderServerService(service: ServiceDescriptor): string {
 function renderServerProcedure(
   service: ServiceDescriptor,
   operation: OperationDescriptor,
+  context: GeneratorContext,
 ): string {
   const registryName = `server${service.goName}Procs`;
   const entryName = `proc${operation.operationTypeName}Entry`;
   const handlerContextName = `${operation.operationTypeName}HandlerContext`;
   const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
   const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
-  const inputType = getServerInputType(operation);
-  const outputType = getServerOutputType(operation);
+  const inputType = getServerInputType(operation, context);
+  const outputType = getServerOutputType(operation, context);
 
   const g = newGenerator().withTabs();
   writeComment(
@@ -362,6 +369,7 @@ function renderServerProcedure(
 function renderServerStream(
   service: ServiceDescriptor,
   operation: OperationDescriptor,
+  context: GeneratorContext,
 ): string {
   const registryName = `server${service.goName}Streams`;
   const entryName = `stream${operation.operationTypeName}Entry`;
@@ -370,8 +378,8 @@ function renderServerStream(
   const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
   const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
   const emitMiddlewareFuncName = `${operation.operationTypeName}EmitMiddlewareFunc`;
-  const inputType = getServerInputType(operation);
-  const outputType = getServerOutputType(operation);
+  const inputType = getServerInputType(operation, context);
+  const outputType = getServerOutputType(operation, context);
 
   const g = newGenerator().withTabs();
   writeComment(
@@ -636,17 +644,30 @@ function writeComment(
 /**
  * Resolves the generated server input type for an operation.
  */
-function getServerInputType(operation: OperationDescriptor): string {
+function getServerInputType(
+  operation: OperationDescriptor,
+  context: GeneratorContext,
+): string {
   return operation.inputTypeName
-    ? `vdltypes.${operation.inputTypeName}`
+    ? `${getTypesQualifier(context)}${operation.inputTypeName}`
     : "Void";
 }
 
 /**
  * Resolves the generated server output type for an operation.
  */
-function getServerOutputType(operation: OperationDescriptor): string {
+function getServerOutputType(
+  operation: OperationDescriptor,
+  context: GeneratorContext,
+): string {
   return operation.outputTypeName
-    ? `vdltypes.${operation.outputTypeName}`
+    ? `${getTypesQualifier(context)}${operation.outputTypeName}`
     : "Void";
+}
+
+/**
+ * Returns the type qualifier used by generated operation signatures.
+ */
+function getTypesQualifier(context: GeneratorContext): string {
+  return context.options.typesImport.length > 0 ? "vdltypes." : "";
 }

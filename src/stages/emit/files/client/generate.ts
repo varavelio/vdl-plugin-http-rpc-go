@@ -27,7 +27,7 @@ export function generateClientFile(
     renderCatalog(context),
     renderCoreRuntime(),
     CLIENT_RUNTIME,
-    renderClientServices(context.services),
+    renderClientServices(context),
   ]);
 
   return createGoFile("client.go", "", body);
@@ -42,6 +42,7 @@ function renderClientImports(context: GeneratorContext): string {
       (operation) => operation.inputTypeName || operation.outputTypeName,
     ),
   );
+  const hasExternalTypesImport = context.options.typesImport.length > 0;
 
   const g = newGenerator().withTabs();
   g.line("import (");
@@ -58,7 +59,7 @@ function renderClientImports(context: GeneratorContext): string {
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
-    if (needsTypesImport) {
+    if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
     }
@@ -70,14 +71,19 @@ function renderClientImports(context: GeneratorContext): string {
 /**
  * Renders all client-facing service registries and operation builders.
  */
-function renderClientServices(services: ServiceDescriptor[]): string {
-  return services.map((service) => renderClientService(service)).join("\n\n");
+function renderClientServices(context: GeneratorContext): string {
+  return context.services
+    .map((service) => renderClientService(service, context))
+    .join("\n\n");
 }
 
 /**
  * Renders the generated client API for a single RPC service.
  */
-function renderClientService(service: ServiceDescriptor): string {
+function renderClientService(
+  service: ServiceDescriptor,
+  context: GeneratorContext,
+): string {
   const rpcStructName = `client${service.goName}RPC`;
   const procsStructName = `client${service.goName}Procs`;
   const streamsStructName = `client${service.goName}Streams`;
@@ -231,7 +237,7 @@ function renderClientService(service: ServiceDescriptor): string {
   for (const operation of service.procedures) {
     g.break();
     g.break();
-    g.raw(renderClientProcedure(service, operation));
+    g.raw(renderClientProcedure(service, operation, context));
   }
 
   writeComment(
@@ -247,7 +253,7 @@ function renderClientService(service: ServiceDescriptor): string {
   for (const operation of service.streams) {
     g.break();
     g.break();
-    g.raw(renderClientStream(service, operation));
+    g.raw(renderClientStream(service, operation, context));
   }
 
   return g.toString();
@@ -259,11 +265,12 @@ function renderClientService(service: ServiceDescriptor): string {
 function renderClientProcedure(
   service: ServiceDescriptor,
   operation: OperationDescriptor,
+  context: GeneratorContext,
 ): string {
   const registryName = `client${service.goName}Procs`;
   const builderName = `clientBuilder${operation.operationTypeName}`;
-  const inputType = getClientInputType(operation);
-  const outputType = getClientOutputType(operation);
+  const inputType = getClientInputType(operation, context);
+  const outputType = getClientOutputType(operation, context);
 
   const g = newGenerator().withTabs();
   writeComment(
@@ -398,11 +405,12 @@ function renderClientProcedure(
 function renderClientStream(
   service: ServiceDescriptor,
   operation: OperationDescriptor,
+  context: GeneratorContext,
 ): string {
   const registryName = `client${service.goName}Streams`;
   const builderName = `clientBuilder${operation.operationTypeName}Stream`;
-  const inputType = getClientInputType(operation);
-  const outputType = getClientOutputType(operation);
+  const inputType = getClientInputType(operation, context);
+  const outputType = getClientOutputType(operation, context);
 
   const g = newGenerator().withTabs();
   writeComment(
@@ -605,17 +613,30 @@ function writeComment(
 /**
  * Resolves the generated client input type for an operation.
  */
-function getClientInputType(operation: OperationDescriptor): string {
+function getClientInputType(
+  operation: OperationDescriptor,
+  context: GeneratorContext,
+): string {
   return operation.inputTypeName
-    ? `vdltypes.${operation.inputTypeName}`
+    ? `${getTypesQualifier(context)}${operation.inputTypeName}`
     : "Void";
 }
 
 /**
  * Resolves the generated client output type for an operation.
  */
-function getClientOutputType(operation: OperationDescriptor): string {
+function getClientOutputType(
+  operation: OperationDescriptor,
+  context: GeneratorContext,
+): string {
   return operation.outputTypeName
-    ? `vdltypes.${operation.outputTypeName}`
+    ? `${getTypesQualifier(context)}${operation.outputTypeName}`
     : "Void";
+}
+
+/**
+ * Returns the type qualifier used by generated operation signatures.
+ */
+function getTypesQualifier(context: GeneratorContext): string {
+  return context.options.typesImport.length > 0 ? "vdltypes." : "";
 }
