@@ -1947,7 +1947,7 @@ function generateClientFile(context) {
     renderCatalog(context),
     renderCoreRuntime(),
     CLIENT_RUNTIME,
-    renderClientServices(context.services)
+    renderClientServices(context)
   ]);
   return createGoFile("client.go", "", body);
 }
@@ -1958,6 +1958,7 @@ function renderClientImports(context) {
       (operation) => operation.inputTypeName || operation.outputTypeName
     )
   );
+  const hasExternalTypesImport = context.options.typesImport.length > 0;
   const g = newGenerator().withTabs();
   g.line("import (");
   g.block(() => {
@@ -1973,7 +1974,7 @@ function renderClientImports(context) {
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
-    if (needsTypesImport) {
+    if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
     }
@@ -1982,11 +1983,11 @@ function renderClientImports(context) {
   return g.toString();
 }
 __name(renderClientImports, "renderClientImports");
-function renderClientServices(services) {
-  return services.map((service) => renderClientService(service)).join("\n\n");
+function renderClientServices(context) {
+  return context.services.map((service) => renderClientService(service, context)).join("\n\n");
 }
 __name(renderClientServices, "renderClientServices");
-function renderClientService(service) {
+function renderClientService(service, context) {
   const rpcStructName = `client${service.goName}RPC`;
   const procsStructName = `client${service.goName}Procs`;
   const streamsStructName = `client${service.goName}Streams`;
@@ -2129,7 +2130,7 @@ function renderClientService(service) {
   for (const operation of service.procedures) {
     g.break();
     g.break();
-    g.raw(renderClientProcedure(service, operation));
+    g.raw(renderClientProcedure(service, operation, context));
   }
   writeComment(
     g,
@@ -2143,16 +2144,16 @@ function renderClientService(service) {
   for (const operation of service.streams) {
     g.break();
     g.break();
-    g.raw(renderClientStream(service, operation));
+    g.raw(renderClientStream(service, operation, context));
   }
   return g.toString();
 }
 __name(renderClientService, "renderClientService");
-function renderClientProcedure(service, operation) {
+function renderClientProcedure(service, operation, context) {
   const registryName = `client${service.goName}Procs`;
   const builderName = `clientBuilder${operation.operationTypeName}`;
-  const inputType = getClientInputType(operation);
-  const outputType = getClientOutputType(operation);
+  const inputType = getClientInputType(operation, context);
+  const outputType = getClientOutputType(operation, context);
   const g = newGenerator().withTabs();
   writeComment(
     g,
@@ -2274,11 +2275,11 @@ function renderClientProcedure(service, operation) {
   return g.toString();
 }
 __name(renderClientProcedure, "renderClientProcedure");
-function renderClientStream(service, operation) {
+function renderClientStream(service, operation, context) {
   const registryName = `client${service.goName}Streams`;
   const builderName = `clientBuilder${operation.operationTypeName}Stream`;
-  const inputType = getClientInputType(operation);
-  const outputType = getClientOutputType(operation);
+  const inputType = getClientInputType(operation, context);
+  const outputType = getClientOutputType(operation, context);
   const g = newGenerator().withTabs();
   writeComment(
     g,
@@ -2460,14 +2461,18 @@ function writeComment(g, summary, doc, deprecated) {
   g.break();
 }
 __name(writeComment, "writeComment");
-function getClientInputType(operation) {
-  return operation.inputTypeName ? `vdltypes.${operation.inputTypeName}` : "Void";
+function getClientInputType(operation, context) {
+  return operation.inputTypeName ? `${getTypesQualifier(context)}${operation.inputTypeName}` : "Void";
 }
 __name(getClientInputType, "getClientInputType");
-function getClientOutputType(operation) {
-  return operation.outputTypeName ? `vdltypes.${operation.outputTypeName}` : "Void";
+function getClientOutputType(operation, context) {
+  return operation.outputTypeName ? `${getTypesQualifier(context)}${operation.outputTypeName}` : "Void";
 }
 __name(getClientOutputType, "getClientOutputType");
+function getTypesQualifier(context) {
+  return context.options.typesImport.length > 0 ? "vdltypes." : "";
+}
+__name(getTypesQualifier, "getTypesQualifier");
 
 // src/stages/emit/files/server/runtime.ts
 var SERVER_RUNTIME = dedent2(
@@ -3409,7 +3414,7 @@ function generateServerFile(context) {
     renderCatalog(context),
     renderCoreRuntime(),
     SERVER_RUNTIME,
-    renderServerServices(context.services)
+    renderServerServices(context)
   ]);
   return createGoFile("server.go", "", body);
 }
@@ -3420,6 +3425,7 @@ function renderServerImports(context) {
       (operation) => operation.inputTypeName || operation.outputTypeName
     )
   );
+  const hasExternalTypesImport = context.options.typesImport.length > 0;
   const g = newGenerator().withTabs();
   g.line("import (");
   g.block(() => {
@@ -3430,7 +3436,7 @@ function renderServerImports(context) {
     g.line('"net/http"');
     g.line('"sync"');
     g.line('"time"');
-    if (needsTypesImport) {
+    if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
     }
@@ -3439,11 +3445,11 @@ function renderServerImports(context) {
   return g.toString();
 }
 __name(renderServerImports, "renderServerImports");
-function renderServerServices(services) {
-  return services.map((service) => renderServerService(service)).join("\n\n");
+function renderServerServices(context) {
+  return context.services.map((service) => renderServerService(service, context)).join("\n\n");
 }
 __name(renderServerServices, "renderServerServices");
-function renderServerService(service) {
+function renderServerService(service, context) {
   const rpcStructName = `server${service.goName}RPC`;
   const procsStructName = `server${service.goName}Procs`;
   const streamsStructName = `server${service.goName}Streams`;
@@ -3538,24 +3544,24 @@ function renderServerService(service) {
   for (const operation of service.procedures) {
     g.break();
     g.break();
-    g.raw(renderServerProcedure(service, operation));
+    g.raw(renderServerProcedure(service, operation, context));
   }
   for (const operation of service.streams) {
     g.break();
     g.break();
-    g.raw(renderServerStream(service, operation));
+    g.raw(renderServerStream(service, operation, context));
   }
   return g.toString();
 }
 __name(renderServerService, "renderServerService");
-function renderServerProcedure(service, operation) {
+function renderServerProcedure(service, operation, context) {
   const registryName = `server${service.goName}Procs`;
   const entryName = `proc${operation.operationTypeName}Entry`;
   const handlerContextName = `${operation.operationTypeName}HandlerContext`;
   const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
   const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
-  const inputType = getServerInputType(operation);
-  const outputType = getServerOutputType(operation);
+  const inputType = getServerInputType(operation, context);
+  const outputType = getServerOutputType(operation, context);
   const g = newGenerator().withTabs();
   writeComment2(
     g,
@@ -3702,7 +3708,7 @@ function renderServerProcedure(service, operation) {
   return g.toString();
 }
 __name(renderServerProcedure, "renderServerProcedure");
-function renderServerStream(service, operation) {
+function renderServerStream(service, operation, context) {
   const registryName = `server${service.goName}Streams`;
   const entryName = `stream${operation.operationTypeName}Entry`;
   const handlerContextName = `${operation.operationTypeName}HandlerContext`;
@@ -3710,8 +3716,8 @@ function renderServerStream(service, operation) {
   const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
   const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
   const emitMiddlewareFuncName = `${operation.operationTypeName}EmitMiddlewareFunc`;
-  const inputType = getServerInputType(operation);
-  const outputType = getServerOutputType(operation);
+  const inputType = getServerInputType(operation, context);
+  const outputType = getServerOutputType(operation, context);
   const g = newGenerator().withTabs();
   writeComment2(
     g,
@@ -3953,14 +3959,18 @@ function writeComment2(g, summary, doc, deprecated) {
   g.break();
 }
 __name(writeComment2, "writeComment");
-function getServerInputType(operation) {
-  return operation.inputTypeName ? `vdltypes.${operation.inputTypeName}` : "Void";
+function getServerInputType(operation, context) {
+  return operation.inputTypeName ? `${getTypesQualifier2(context)}${operation.inputTypeName}` : "Void";
 }
 __name(getServerInputType, "getServerInputType");
-function getServerOutputType(operation) {
-  return operation.outputTypeName ? `vdltypes.${operation.outputTypeName}` : "Void";
+function getServerOutputType(operation, context) {
+  return operation.outputTypeName ? `${getTypesQualifier2(context)}${operation.outputTypeName}` : "Void";
 }
 __name(getServerOutputType, "getServerOutputType");
+function getTypesQualifier2(context) {
+  return context.options.typesImport.length > 0 ? "vdltypes." : "";
+}
+__name(getTypesQualifier2, "getTypesQualifier");
 
 // src/stages/emit/generate-files.ts
 function generateFiles(context) {
@@ -4195,11 +4205,6 @@ function resolveGeneratorOptions(input) {
   const targetRaw = getOptionString(input.options, "target", "").trim();
   const target = isGeneratorTarget(targetRaw) ? targetRaw : void 0;
   const errors = [];
-  if (!typesImport) {
-    errors.push({
-      message: 'Missing required option "typesImport". Point it to the Go package generated by varavelio/vdl-plugin-go plugin.'
-    });
-  }
   if (!target) {
     errors.push({
       message: 'Missing or invalid option "target". Use either "client" or "server".'
