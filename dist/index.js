@@ -1965,7 +1965,7 @@ function renderClientImports(context) {
     g.line('"bufio"');
     g.line('"bytes"');
     g.line('"context"');
-    g.line('"encoding/json"');
+    g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"errors"');
     g.line('"fmt"');
     g.line('"io"');
@@ -3430,7 +3430,7 @@ function renderServerImports(context) {
   g.line("import (");
   g.block(() => {
     g.line('"context"');
-    g.line('"encoding/json"');
+    g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
@@ -4198,10 +4198,12 @@ function getOptionString(options, key, defaultValue) {
 __name(getOptionString, "getOptionString");
 
 // src/stages/options/resolve.ts
+var DEFAULT_JSON_PACKAGE = "encoding/json";
 var DEFAULT_PACKAGE_NAME = "vdlrpc";
 function resolveGeneratorOptions(input) {
   const packageName = getOptionString(input.options, "package", DEFAULT_PACKAGE_NAME).trim();
   const typesImport = getOptionString(input.options, "typesImport", "").trim();
+  const jsonPackage = getOptionString(input.options, "jsonPackage", DEFAULT_JSON_PACKAGE).trim();
   const targetRaw = getOptionString(input.options, "target", "").trim();
   const target = isGeneratorTarget(targetRaw) ? targetRaw : void 0;
   const errors = [];
@@ -4225,6 +4227,7 @@ function resolveGeneratorOptions(input) {
   return {
     errors: [],
     options: {
+      jsonPackage: jsonPackage || DEFAULT_JSON_PACKAGE,
       packageName,
       target,
       typesImport
