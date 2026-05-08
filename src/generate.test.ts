@@ -137,6 +137,30 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain("json.Unmarshal");
   });
 
+  it.each([
+    "client",
+    "server",
+  ] as const)("renders the custom json import alias for the %s target", (target) => {
+    const output = generate({
+      ...createBaseInput(),
+      options: {
+        ...createBaseInput().options,
+        target,
+        jsonPackage: "github.com/goccy/go-json",
+      },
+    });
+
+    expect(output.errors).toBeUndefined();
+
+    const importBlock = output.files?.[0]?.content.match(
+      /import \([\s\S]*?\n\)/,
+    )?.[0];
+
+    expect(importBlock).toContain('json "github.com/goccy/go-json"');
+    expect(importBlock).toContain('vdltypes "fixture/internal/types"');
+    expect(importBlock).not.toContain('"encoding/json"');
+  });
+
   it("generates without types import when typesImport is empty", () => {
     const input = createBaseInput();
     const output = generate({
