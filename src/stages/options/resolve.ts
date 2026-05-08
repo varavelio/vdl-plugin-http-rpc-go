@@ -3,6 +3,7 @@ import * as options from "@varavel/vdl-plugin-sdk/utils/options";
 import { isValidGoPackageName } from "../../shared/naming";
 import type { GeneratorOptions, GeneratorTarget } from "../model/types";
 
+const DEFAULT_JSON_PACKAGE = "encoding/json";
 const DEFAULT_PACKAGE_NAME = "vdlrpc";
 
 /**
@@ -17,6 +18,9 @@ export function resolveGeneratorOptions(input: PluginInput): {
     .trim();
   const typesImport = options
     .getOptionString(input.options, "typesImport", "")
+    .trim();
+  const jsonPackage = options
+    .getOptionString(input.options, "jsonPackage", DEFAULT_JSON_PACKAGE)
     .trim();
   const targetRaw = options.getOptionString(input.options, "target", "").trim();
   const target = isGeneratorTarget(targetRaw) ? targetRaw : undefined;
@@ -47,6 +51,7 @@ export function resolveGeneratorOptions(input: PluginInput): {
   return {
     errors: [],
     options: {
+      jsonPackage: jsonPackage || DEFAULT_JSON_PACKAGE,
       packageName,
       target,
       typesImport,

@@ -26,9 +26,52 @@ describe("resolveGeneratorOptions", () => {
     expect(result.errors).toEqual([]);
     expect(result.options).toEqual({
       packageName: "rpcclient",
+      jsonPackage: "encoding/json",
       target: "client",
       typesImport: "",
     });
+  });
+
+  it("uses the default jsonPackage when omitted", () => {
+    const result = resolveGeneratorOptions(
+      pluginInput({
+        options: {
+          package: "rpcclient",
+          target: "client",
+        },
+      }),
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.options?.jsonPackage).toBe("encoding/json");
+  });
+
+  it("trims jsonPackage and falls back to the default when empty", () => {
+    const trimmed = resolveGeneratorOptions(
+      pluginInput({
+        options: {
+          package: "rpcclient",
+          target: "client",
+          jsonPackage: "  github.com/goccy/go-json  ",
+        },
+      }),
+    );
+
+    expect(trimmed.errors).toEqual([]);
+    expect(trimmed.options?.jsonPackage).toBe("github.com/goccy/go-json");
+
+    const fallback = resolveGeneratorOptions(
+      pluginInput({
+        options: {
+          package: "rpcclient",
+          target: "client",
+          jsonPackage: "   ",
+        },
+      }),
+    );
+
+    expect(fallback.errors).toEqual([]);
+    expect(fallback.options?.jsonPackage).toBe("encoding/json");
   });
 
   it("returns validated options when configuration is correct", () => {
@@ -36,6 +79,7 @@ describe("resolveGeneratorOptions", () => {
       pluginInput({
         options: {
           package: "rpcclient",
+          jsonPackage: "github.com/goccy/go-json",
           target: "client",
           typesImport: "fixture/internal/types",
         },
@@ -45,6 +89,7 @@ describe("resolveGeneratorOptions", () => {
     expect(result.errors).toEqual([]);
     expect(result.options).toEqual({
       packageName: "rpcclient",
+      jsonPackage: "github.com/goccy/go-json",
       target: "client",
       typesImport: "fixture/internal/types",
     });

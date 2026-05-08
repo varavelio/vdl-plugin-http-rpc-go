@@ -48,7 +48,7 @@ function renderServerImports(context: GeneratorContext): string {
   g.line("import (");
   g.block(() => {
     g.line('"context"');
-    g.line('"encoding/json"');
+    g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');

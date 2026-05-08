@@ -15,6 +15,7 @@ export type GeneratorTarget = "client" | "server";
  * Resolved plugin options used by later generation stages.
  */
 export type GeneratorOptions = {
+  jsonPackage: string;
   packageName: string;
   target: GeneratorTarget;
   typesImport: string;

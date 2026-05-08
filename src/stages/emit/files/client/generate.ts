@@ -50,7 +50,7 @@ function renderClientImports(context: GeneratorContext): string {
     g.line('"bufio"');
     g.line('"bytes"');
     g.line('"context"');
-    g.line('"encoding/json"');
+    g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"errors"');
     g.line('"fmt"');
     g.line('"io"');

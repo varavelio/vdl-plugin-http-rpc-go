@@ -92,6 +92,7 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain(
       'vdltypes "fixture/internal/types"',
     );
+    expect(output.files?.[0]?.content).toContain('json "encoding/json"');
     expect(output.files?.[0]?.content).toContain(
       "vdltypes.MessagesSendMessageInput",
     );
@@ -112,9 +113,28 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain(
       'vdltypes "fixture/internal/types"',
     );
+    expect(output.files?.[0]?.content).toContain('json "encoding/json"');
     expect(output.files?.[0]?.content).toContain(
       "vdltypes.MessagesSendMessageInput",
     );
+  });
+
+  it("uses the configured jsonPackage in generated imports", () => {
+    const output = generate({
+      ...createBaseInput(),
+      options: {
+        ...createBaseInput().options,
+        target: "client",
+        jsonPackage: "github.com/goccy/go-json",
+      },
+    });
+
+    expect(output.errors).toBeUndefined();
+    expect(output.files?.[0]?.content).toContain(
+      'json "github.com/goccy/go-json"',
+    );
+    expect(output.files?.[0]?.content).not.toContain('"encoding/json"');
+    expect(output.files?.[0]?.content).toContain("json.Unmarshal");
   });
 
   it("generates without types import when typesImport is empty", () => {

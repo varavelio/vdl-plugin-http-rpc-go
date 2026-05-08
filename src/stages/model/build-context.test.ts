@@ -56,6 +56,7 @@ describe("createGeneratorContext", () => {
     const result = createGeneratorContext({
       input,
       generatorOptions: {
+        jsonPackage: "encoding/json",
         packageName: "client",
         target: "client",
         typesImport: "fixture/internal/types",
@@ -107,6 +108,7 @@ describe("createGeneratorContext", () => {
     const result = createGeneratorContext({
       input,
       generatorOptions: {
+        jsonPackage: "encoding/json",
         packageName: "client",
         target: "client",
         typesImport: "fixture/internal/types",
@@ -140,6 +142,7 @@ describe("createGeneratorContext", () => {
     const result = createGeneratorContext({
       input,
       generatorOptions: {
+        jsonPackage: "encoding/json",
         packageName: "client",
         target: "client",
         typesImport: "fixture/internal/types",
