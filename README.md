@@ -36,7 +36,7 @@ const config = {
   version 1
   plugins [
     {
-      src "varavelio/vdl-plugin-go@v0.1.2"
+      src "varavelio/vdl-plugin-go@v0.1.3"
       schema "./schema.vdl"
       outDir "./internal/types"
       options {
@@ -44,7 +44,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@v0.1.1"
+      src "varavelio/vdl-plugin-rpc-go@v0.1.2"
       schema "./schema.vdl"
       outDir "./internal/client"
       options {
@@ -54,7 +54,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@v0.1.1"
+      src "varavelio/vdl-plugin-rpc-go@v0.1.2"
       schema "./schema.vdl"
       outDir "./internal/server"
       options {
