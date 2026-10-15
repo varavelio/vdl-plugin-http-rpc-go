@@ -201,6 +201,24 @@ func example() {
 }
 ```
 
+### Serving with HTTPHandler
+
+Manual wiring with `HandleFunc` gives full control over routing and props.
+For standard `net/http` servers, `Server.HTTPHandler` removes that boilerplate:
+it routes `POST /{rpc}/{procedure}` below the mount point, builds props per
+request, and keeps the standard envelope behavior for unknown procedures.
+
+```go
+mux := http.NewServeMux()
+mux.Handle("/rpc/", http.StripPrefix("/rpc", server.HTTPHandler(
+  func(r *http.Request) appProps {
+    return appProps{UserID: r.Header.Get("X-User")}
+  },
+)))
+```
+
+Non-`POST` requests get `405`, paths without exactly two segments get `404`.
+
 `baseURL` in `NewClient(baseURL)` should point to your RPC prefix (for example: `/rpc`). The generated client appends `/{lowerFirst(RPC)}/{procedure}` automatically per VPP-2.
 
 ## License

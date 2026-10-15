@@ -258,6 +258,38 @@ describe("generate", () => {
     );
   });
 
+  it("exposes an HTTPHandler for standard net/http mounting", () => {
+    const output = generate(
+      pluginInput({
+        ir: schema({
+          types: [
+            typeDef(
+              "Commands",
+              objectType([
+                field("ping", objectType([]), {
+                  annotations: [annotation("proc")],
+                }),
+              ]),
+              {
+                annotations: [annotation("httpRpc")],
+              },
+            ),
+          ],
+        }),
+        options: {
+          package: "serverpkg",
+          target: "server",
+          typesImport: "fixture/internal/types",
+        },
+      }),
+    );
+
+    expect(output.errors).toBeUndefined();
+    expect(output.files?.[0]?.content).toContain(
+      "func (s *Server[T]) HTTPHandler(propsFn PropsFunc[T]) http.Handler",
+    );
+  });
+
   it("renders Deprecated notes for deprecated services and procedures", () => {
     const input = pluginInput({
       ir: schema({

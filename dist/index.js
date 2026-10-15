@@ -2502,6 +2502,44 @@ var SERVER_RUNTIME = dedent2(
     return s.intServer.handleRequest(ctx, props, rpcName, procedureName, httpAdapter)
   }
 
+  // PropsFunc builds request-scoped props from the incoming HTTP request.
+  //
+  // Use it with HTTPHandler to derive per-request dependencies (auth data,
+  // tenants, request IDs) from headers or context before any middleware runs.
+  type PropsFunc[T any] func(r *http.Request) T
+
+  // HTTPHandler returns an http.Handler serving every registered procedure.
+  //
+  // Mount it under the RPC base path; segments below the mount point must be
+  // /{rpc}/{procedure} using the VPP-2 lowerFirst transport form:
+  //
+  //   mux.Handle("/rpc/", http.StripPrefix("/rpc", server.HTTPHandler(newProps)))
+  //
+  // Only POST requests route to procedures; anything else gets 405. Paths
+  // without exactly two segments get 404. Unknown procedures keep the
+  // standard envelope behavior through HandleRequest.
+  //
+  // propsFn must not be nil; a nil props function panics.
+  func (s *Server[T]) HTTPHandler(propsFn PropsFunc[T]) http.Handler {
+    if propsFn == nil {
+      panic("vdl rpc: HTTPHandler requires a non-nil props function")
+    }
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+      if r.Method != http.MethodPost {
+        w.Header().Set("Allow", http.MethodPost)
+        http.Error(w, "method not allowed, use POST", http.StatusMethodNotAllowed)
+        return
+      }
+      segments := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+      if len(segments) != 2 || segments[0] == "" || segments[1] == "" {
+        http.NotFound(w, r)
+        return
+      }
+      adapter := NewNetHTTPAdapter(w, r)
+      _ = s.HandleRequest(r.Context(), propsFn(r), segments[0], segments[1], adapter)
+    })
+  }
+
   // serverRPCRegistry provides typed access to register handlers and middlewares for procedures within a specific RPC service.
   type serverRPCRegistry[T any] struct {
     intServer *internalServer[T]
@@ -2543,6 +2581,7 @@ function renderServerImports(context) {
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
+    g.line('"strings"');
     g.line('"sync"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
