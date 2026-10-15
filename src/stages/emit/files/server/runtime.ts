@@ -94,7 +94,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // dependencies and request data (e.g., UserID, DB connection, etc.).
   //
   // The generic type I represents the input type, which can be any type depending
-  // on the operation.
+  // on the procedure.
   //
   //   - T: The type of the Props field, which is a user-defined container for application and request data.
   //   - I: The type of the Input field, which contains the deserialized request body. For global middlewares, this will be any.
@@ -109,15 +109,15 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     Context context.Context
     // Annotations is a slice of annotation objects associated with the request.
     Annotations []Annotation
-    // operation is the details of the RPC operation including it's RPC name, operation name and type.
-    operation OperationDefinition
+    // procedure is the details of the RPC procedure including its RPC name and procedure name.
+    procedure ProcedureDefinition
   }
 
   // RPCName returns the name of the RPC service
-  func (h *HandlerContext[T, I]) RPCName() string { return h.operation.RPCName }
+  func (h *HandlerContext[T, I]) RPCName() string { return h.procedure.RPCName }
 
-  // OperationName returns the name of the operation (e.g. "CreateUser", "GetPost", etc.)
-  func (h *HandlerContext[T, I]) OperationName() string { return h.operation.Name }
+  // ProcedureName returns the name of the procedure (e.g. "CreateUser", "GetPost", etc.)
+  func (h *HandlerContext[T, I]) ProcedureName() string { return h.procedure.Name }
 
   // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //
@@ -152,7 +152,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // ErrorHandlerFunc transforms an internal Go error into a public VDL Error.
   //
   // The handler receives the full request context, enabling structured logging
-  // with access to Props, RPC Name, Operation Name, and other metadata.
+  // with access to Props, RPC Name, Procedure Name, and other metadata.
   //
   //   - T: Application-defined context type (props).
   type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
@@ -172,9 +172,9 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     // handlersMu protects all handler maps and middleware slices from concurrent access
     handlersMu sync.RWMutex
 
-    // operationDefs contains the definition of all registered operations.
-    // Map format: rpcName -> operationName -> OperationDefinition.
-    operationDefs map[string]map[string]OperationDefinition
+    // procedureDefs contains the definition of all registered procedures.
+    // Map format: rpcName -> procedureName -> ProcedureDefinition.
+    procedureDefs map[string]map[string]ProcedureDefinition
 
     // procHandlers stores the final implementation functions for procedures
     // Map format: rpcName -> procName -> handler
@@ -223,9 +223,9 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //   - T: Application-defined context type (props).
   //
   // Returns a new internalServer instance ready for handler and middleware registration.
-  func newInternalServer[T any](procDefs []OperationDefinition) *internalServer[T] {
+  func newInternalServer[T any](procDefs []ProcedureDefinition) *internalServer[T] {
     // Initialize maps
-    operationDefs := make(map[string]map[string]OperationDefinition)
+    procedureDefs := make(map[string]map[string]ProcedureDefinition)
     procHandlers := make(map[string]map[string]ProcHandlerFunc[T, any, any])
     rpcMiddlewares := make(map[string][]GlobalMiddlewareFunc[T])
     procMiddlewares := make(map[string]map[string][]ProcMiddlewareFunc[T, any, any])
@@ -234,8 +234,8 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 
     // Helper to ensure RPC map existence
     ensureRPC := func(rpcName string) {
-      if _, ok := operationDefs[rpcName]; !ok {
-        operationDefs[rpcName] = make(map[string]OperationDefinition)
+      if _, ok := procedureDefs[rpcName]; !ok {
+        procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
         procHandlers[rpcName] = make(map[string]ProcHandlerFunc[T, any, any])
         procMiddlewares[rpcName] = make(map[string][]ProcMiddlewareFunc[T, any, any])
         procDeserializers[rpcName] = make(map[string]DeserializerFunc)
@@ -244,12 +244,12 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 
     for _, def := range procDefs {
       ensureRPC(def.RPCName)
-      operationDefs[def.RPCName][def.Name] = def
+      procedureDefs[def.RPCName][def.Name] = def
     }
 
     return &internalServer[T]{
       handlersMu:            sync.RWMutex{},
-      operationDefs:         operationDefs,
+      procedureDefs:       procedureDefs,
       procHandlers:          procHandlers,
       globalMiddlewares:     []GlobalMiddlewareFunc[T]{},
       rpcMiddlewares:        rpcMiddlewares,
@@ -361,7 +361,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //   - ctx: The request context
   //   - props: The VDL context containing user-defined data
   //   - rpcName: The RPC service name from the request URL (lowerFirst form)
-  //   - operationName: The name of the procedure to invoke
+  //   - procedureName: The name of the procedure to invoke
   //   - httpAdapter: The HTTP adapter for reading requests and writing responses
   //
   // Returns an error if request processing fails at the transport level.
@@ -369,7 +369,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     ctx context.Context,
     props T,
     rpcName string,
-    operationName string,
+    procedureName string,
     httpAdapter HTTPAdapter,
   ) error {
     if httpAdapter == nil {
@@ -396,11 +396,11 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       rawInput = nil
     }
 
-    operation, canonicalRPC, canonicalOp, operationExists := s.lookupOperation(rpcName, operationName)
-    if !operationExists {
+    procedure, canonicalRPC, canonicalProcedure, procedureExists := s.lookupProcedure(rpcName, procedureName)
+    if !procedureExists {
       res := Response[any]{
         Ok:    false,
-        Error: Error{Message: fmt.Sprintf("Invalid operation: %s.%s", rpcName, operationName)},
+        Error: Error{Message: fmt.Sprintf("Invalid procedure: %s.%s", rpcName, procedureName)},
       }
       return s.writeProcResponse(httpAdapter, res)
     }
@@ -410,18 +410,18 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       Input:   rawInput,
       Props:   props,
       Context: ctx,
-      Annotations: cloneAnnotations(operation.Annotations),
-      operation: OperationDefinition{
-        RPCName:      operation.RPCName,
-        RPCRoute:     operation.RPCRoute,
-        Name:         operation.Name,
-        Path:         operation.Path,
-        Annotations:  cloneAnnotations(operation.Annotations),
+      Annotations: cloneAnnotations(procedure.Annotations),
+      procedure: ProcedureDefinition{
+        RPCName:      procedure.RPCName,
+        RPCRoute:     procedure.RPCRoute,
+        Name:         procedure.Name,
+        Path:         procedure.Path,
+        Annotations:  cloneAnnotations(procedure.Annotations),
       },
     }
 
     // Handle Procedure
-    output, err := s.handleProcRequest(c, canonicalRPC, canonicalOp, rawInput)
+    output, err := s.handleProcRequest(c, canonicalRPC, canonicalProcedure, rawInput)
     response := Response[any]{}
     if err != nil {
       response.Ok = false
@@ -435,21 +435,21 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     return s.writeProcResponse(httpAdapter, response)
   }
 
-  // lookupOperation resolves an incoming route to its canonical procedure definition.
+  // lookupProcedure resolves an incoming route to its canonical procedure definition.
   //
   // The RPC segment matches the VPP-2 lowerFirst transport form. The canonical
   // VDL service name is returned for handler and middleware lookup.
-  func (s *internalServer[T]) lookupOperation(rpcName string, operationName string) (OperationDefinition, string, string, bool) {
+  func (s *internalServer[T]) lookupProcedure(rpcName string, procedureName string) (ProcedureDefinition, string, string, bool) {
     s.handlersMu.RLock()
     defer s.handlersMu.RUnlock()
-    for canonicalRPC, operations := range s.operationDefs {
-      if operation, ok := operations[operationName]; ok {
-        if canonicalRPC == rpcName || operation.RPCRoute == rpcName {
-          return operation, canonicalRPC, operationName, true
+    for canonicalRPC, procedures := range s.procedureDefs {
+      if procedure, ok := procedures[procedureName]; ok {
+        if canonicalRPC == rpcName || procedure.RPCRoute == rpcName {
+          return procedure, canonicalRPC, procedureName, true
         }
       }
     }
-    return OperationDefinition{}, "", "", false
+    return ProcedureDefinition{}, "", "", false
   }
 
   // handleProcRequest builds the per-request middleware chain for a procedure and executes it.
@@ -590,20 +590,20 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // HandleRequest processes an incoming RPC request and drives the complete
 	// request lifecycle (parsing, middleware chains, handler dispatch, response).
 	//
-	// rpcName and operationName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
+	// rpcName and procedureName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
   //
 	// httpAdapter bridges VDL RPC with your HTTP framework (use NewNetHTTPAdapter for net/http or compatible).
 	//
 	// Example (net/http):
   //
-	//   http.HandleFunc("POST /rpc/{rpcName}/{operationName}", func(w http.ResponseWriter, r *http.Request) {
+	//   http.HandleFunc("POST /rpc/{rpcName}/{procedureName}", func(w http.ResponseWriter, r *http.Request) {
 	//       ctx := r.Context()
 	//       props := AppProps{UserID: "abc"}
 	//       adapter := NewNetHTTPAdapter(w, r)
-	//       _ = server.HandleRequest(ctx, props, r.PathValue("rpcName"), r.PathValue("operationName"), adapter)
+	//       _ = server.HandleRequest(ctx, props, r.PathValue("rpcName"), r.PathValue("procedureName"), adapter)
 	//   })
-  func (s *Server[T]) HandleRequest(ctx context.Context, props T, rpcName string, operationName string, httpAdapter HTTPAdapter) error {
-    return s.intServer.handleRequest(ctx, props, rpcName, operationName, httpAdapter)
+  func (s *Server[T]) HandleRequest(ctx context.Context, props T, rpcName string, procedureName string, httpAdapter HTTPAdapter) error {
+    return s.intServer.handleRequest(ctx, props, rpcName, procedureName, httpAdapter)
   }
 
   // serverRPCRegistry provides typed access to register handlers and middlewares for procedures within a specific RPC service.

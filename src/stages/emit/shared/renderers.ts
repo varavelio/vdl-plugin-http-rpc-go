@@ -9,7 +9,7 @@ export function renderGoString(value: string): string {
 }
 
 /**
- * Renders the generated Go literal for a slice of operation annotations.
+ * Renders the generated Go literal for a slice of procedure annotations.
  */
 export function renderAnnotationsLiteral(annotations: Annotation[]): string {
   if (annotations.length === 0) {

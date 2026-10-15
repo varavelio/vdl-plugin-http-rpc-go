@@ -9,7 +9,7 @@ export function renderCoreRuntime(): string {
     // RPC Core Types
     // -----------------------------------------------------------------------------
 
-    // Annotation represents operation-level annotation metadata preserved from VDL.
+    // Annotation represents procedure-level annotation metadata preserved from VDL.
     type Annotation struct {
       // Name is the annotation identifier without the @ prefix.
       Name string
@@ -17,17 +17,17 @@ export function renderCoreRuntime(): string {
       Argument any
     }
 
-    // OperationDefinition describes a generated procedure.
-    type OperationDefinition struct {
-      // RPCName is the VDL service name that owns the operation.
+    // ProcedureDefinition describes a generated procedure.
+    type ProcedureDefinition struct {
+      // RPCName is the VDL service name that owns the procedure.
       RPCName string
       // RPCRoute is the lowerFirst transport segment precomputed by the generator.
       RPCRoute string
-      // Name is the VDL field name of the operation.
+      // Name is the VDL field name of the procedure.
       Name string
       // Path is the VPP-2 transport path precomputed by the generator.
       Path string
-      // Annotations contains every non-marker annotation declared on the operation.
+      // Annotations contains every non-marker annotation declared on the procedure.
       Annotations []Annotation
     }
 

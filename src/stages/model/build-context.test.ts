@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { createGeneratorContext } from "./build-context";
 
 describe("createGeneratorContext", () => {
-  it("models annotation-based RPC services and operations", () => {
+  it("models annotation-based RPC services and procedures", () => {
     const input = pluginInput({
       ir: schema({
         types: [
@@ -68,21 +68,21 @@ describe("createGeneratorContext", () => {
     expect(result.context?.procedures).toHaveLength(1);
 
     const service = result.context?.services[0];
-    const operation = result.context?.procedures[0];
+    const procedure = result.context?.procedures[0];
 
     expect(service).toMatchObject({
       name: "Messages",
       goName: "Messages",
     });
-    expect(operation).toMatchObject({
+    expect(procedure).toMatchObject({
       rpcName: "Messages",
       name: "sendMessage",
       goName: "SendMessage",
-      operationTypeName: "MessagesSendMessage",
+      procedureTypeName: "MessagesSendMessage",
       inputTypeName: "MessagesSendMessageInput",
       outputTypeName: "MessagesSendMessageOutput",
     });
-    expect(operation?.annotations.map((item) => item.name)).toEqual(["cache"]);
+    expect(procedure?.annotations.map((item) => item.name)).toEqual(["cache"]);
   });
 
   it("ignores non-proc fields inside httpRpc services", () => {
@@ -120,7 +120,7 @@ describe("createGeneratorContext", () => {
     expect(result.context?.procedures[0]?.name).toBe("ping");
   });
 
-  it("allows operations that omit input and output entirely", () => {
+  it("allows procedures that omit input and output entirely", () => {
     const input = pluginInput({
       ir: schema({
         types: [

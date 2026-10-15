@@ -17,7 +17,7 @@ import {
 import type {
   GeneratorContext,
   GeneratorOptions,
-  OperationDescriptor,
+  ProcedureDescriptor,
   ServiceDescriptor,
 } from "./types";
 
@@ -38,7 +38,7 @@ export function createGeneratorContext(options: {
     services.push(buildServiceDescriptor(typeDef));
   }
 
-  const procedures: OperationDescriptor[] = [];
+  const procedures: ProcedureDescriptor[] = [];
 
   for (const service of services) {
     procedures.push(...service.procedures);
@@ -60,12 +60,12 @@ export function createGeneratorContext(options: {
  * Converts an `@httpRpc`-annotated type into a service descriptor.
  */
 function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
-  const operations: OperationDescriptor[] = [];
+  const proceduresLocal: ProcedureDescriptor[] = [];
 
   for (const field of typeDef.typeRef.objectFields ?? []) {
-    const operation = buildOperationDescriptor(typeDef, field);
-    if (operation) {
-      operations.push(operation);
+    const procedure = buildProcedureDescriptor(typeDef, field);
+    if (procedure) {
+      proceduresLocal.push(procedure);
     }
   }
 
@@ -76,39 +76,38 @@ function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
     doc: typeDef.doc,
     deprecated: getDeprecatedMessage(typeDef.annotations),
     annotations: typeDef.annotations,
-    operations,
-    procedures: operations,
+    procedures: proceduresLocal,
   };
 }
 
 /**
  * Converts a `@proc` field into a procedure descriptor.
  */
-function buildOperationDescriptor(
+function buildProcedureDescriptor(
   serviceType: TypeDef,
   field: Field,
-): OperationDescriptor | undefined {
+): ProcedureDescriptor | undefined {
   if (!getAnnotation(field.annotations, "proc")) {
     return undefined;
   }
 
-  const inputField = findOperationField(field, "input");
-  const outputField = findOperationField(field, "output");
+  const inputField = findProcedureField(field, "input");
+  const outputField = findProcedureField(field, "output");
   const rpcGoName = toGoTypeName(serviceType.name);
   const goName = toGoFieldName(field.name);
-  const operationTypeName = toInlineTypeName(rpcGoName, field.name);
+  const procedureTypeName = toInlineTypeName(rpcGoName, field.name);
 
   return {
     rpcName: serviceType.name,
     rpcGoName,
     name: field.name,
     goName,
-    operationTypeName,
+    procedureTypeName,
     inputTypeName: inputField
-      ? toInlineTypeName(operationTypeName, inputField.name)
+      ? toInlineTypeName(procedureTypeName, inputField.name)
       : undefined,
     outputTypeName: outputField
-      ? toInlineTypeName(operationTypeName, outputField.name)
+      ? toInlineTypeName(procedureTypeName, outputField.name)
       : undefined,
     position: field.position,
     doc: field.doc,
@@ -124,11 +123,11 @@ function buildOperationDescriptor(
 /**
  * Finds the named `input` or `output` field inside a procedure object.
  */
-function findOperationField(
-  operationField: Field,
+function findProcedureField(
+  procedureField: Field,
   name: string,
 ): Field | undefined {
-  return operationField.typeRef.objectFields?.find(
+  return procedureField.typeRef.objectFields?.find(
     (field) => field.name === name,
   );
 }

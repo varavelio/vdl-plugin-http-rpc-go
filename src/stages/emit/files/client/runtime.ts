@@ -8,11 +8,11 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// RequestInfo contains information about the RPC request currently being executed.
 	//
 	// It is passed through interceptors and retry deciders so callers can
-	// inspect the targeted RPC, operation, request payload, and the
-	// non-marker annotations declared on the VDL operation.
+	// inspect the targeted RPC, procedure, request payload, and the
+	// non-marker annotations declared on the VDL procedure.
 	type RequestInfo struct {
 		RPCName string
-		OperationName string
+		ProcedureName string
 		Input any
 		Annotations []Annotation
 	}
@@ -80,7 +80,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		// Immutable after construction.
 		baseURL string
 		httpClient *http.Client
-		operationDefs map[string]map[string]OperationDefinition
+		procedureDefs map[string]map[string]ProcedureDefinition
 
 		// Dynamic components
 		headerProviders []HeaderProvider
@@ -155,25 +155,25 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	//
 	// The caller can optionally pass functional options to customize transport
 	// behavior, headers, interceptors, and retry policies.
-	func newInternalClient(baseURL string, procDefs []OperationDefinition, opts ...internalClientOption) *internalClient {
-		operationDefs := make(map[string]map[string]OperationDefinition)
+	func newInternalClient(baseURL string, procDefs []ProcedureDefinition, opts ...internalClientOption) *internalClient {
+		procedureDefs := make(map[string]map[string]ProcedureDefinition)
 
 		ensureRPC := func(rpcName string) {
-			if _, ok := operationDefs[rpcName]; !ok {
-				operationDefs[rpcName] = make(map[string]OperationDefinition)
+			if _, ok := procedureDefs[rpcName]; !ok {
+				procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
 			}
 		}
 
 		for _, def := range procDefs {
 			ensureRPC(def.RPCName)
-			operationDefs[def.RPCName][def.Name] = def
+			procedureDefs[def.RPCName][def.Name] = def
 		}
 
 
 		client := &internalClient{
 			baseURL: strings.TrimRight(baseURL, "/"),
 			httpClient: http.DefaultClient,
-			operationDefs: operationDefs,
+			procedureDefs: procedureDefs,
 			headerProviders: []HeaderProvider{},
 			interceptors: []Interceptor{},
 			rpcHeaderProviders: make(map[string][]HeaderProvider),
@@ -211,7 +211,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	}
 
 	// mergeRetryConfig resolves retry configuration using this precedence:
-	// operation override > RPC override > global override > default.
+	// procedure override > RPC override > global override > default.
 	func (c *internalClient) mergeRetryConfig(rpcName string, opConf *RetryConfig) *RetryConfig {
 		if opConf != nil {
 			return opConf
@@ -234,7 +234,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	}
 
 	// mergeTimeoutConfig resolves timeout configuration using this precedence:
-	// operation override > RPC override > global override > default.
+	// procedure override > RPC override > global override > default.
 	func (c *internalClient) mergeTimeoutConfig(rpcName string, opConf *TimeoutConfig) *TimeoutConfig {
 		if opConf != nil {
 			return opConf
@@ -264,13 +264,13 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return chain(ctx, req)
 	}
 
-	// lookupOperation returns the generated operation definition for the requested RPC member.
-	func (c *internalClient) lookupOperation(rpcName string, operationName string) (OperationDefinition, bool) {
-		if operations, ok := c.operationDefs[rpcName]; ok {
-			operation, ok := operations[operationName]
-			return operation, ok
+	// lookupProcedure returns the generated procedure definition for the requested RPC member.
+	func (c *internalClient) lookupProcedure(rpcName string, procedureName string) (ProcedureDefinition, bool) {
+		if procedures, ok := c.procedureDefs[rpcName]; ok {
+			procedure, ok := procedures[procedureName]
+			return procedure, ok
 		}
-		return OperationDefinition{}, false
+		return ProcedureDefinition{}, false
 	}
 
 	// proc invokes the given procedure and returns the raw wire envelope.
@@ -283,7 +283,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		opRetryConf *RetryConfig,
 		opTimeoutConf *TimeoutConfig,
 	) Response[json.RawMessage] {
-		operation, ok := c.lookupOperation(rpcName, procName)
+		procedure, ok := c.lookupProcedure(rpcName, procName)
 		if !ok {
 			return Response[json.RawMessage]{
 				Ok: false,
@@ -298,9 +298,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 		reqInfo := RequestInfo{
 			RPCName: rpcName,
-			OperationName: procName,
+			ProcedureName: procName,
 			Input: input,
-			Annotations: cloneAnnotations(operation.Annotations),
+			Annotations: cloneAnnotations(procedure.Annotations),
 		}
 
 		invoker := func(callCtx context.Context, req RequestInfo) (Response[json.RawMessage], error) {
@@ -318,12 +318,12 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 					Error: Error{
 						Category: "ClientError",
 						Code: "ENCODE_INPUT",
-						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.OperationName, err),
+						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.ProcedureName, err),
 					},
 				}, nil
 			}
 
-			url := c.baseURL + operation.Path
+			url := c.baseURL + procedure.Path
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -450,7 +450,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return Response[json.RawMessage]{Ok: true, Output: raw.Output}, false, response.StatusCode, nil
 	}
 
-	// applyHeaderProviders applies global, RPC-scoped, and per-operation header providers in order.
+	// applyHeaderProviders applies global, RPC-scoped, and per-procedure header providers in order.
 	func (c *internalClient) applyHeaderProviders(ctx context.Context, rpcName string, header http.Header, opHeaderProviders []HeaderProvider) error {
 		for _, provider := range c.headerProviders {
 			if err := provider(ctx, header); err != nil {
@@ -470,7 +470,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 		for _, provider := range opHeaderProviders {
 			if err := provider(ctx, header); err != nil {
-				return fmt.Errorf("operation header provider failed: %w", err)
+				return fmt.Errorf("procedure header provider failed: %w", err)
 			}
 		}
 

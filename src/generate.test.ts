@@ -180,7 +180,7 @@ describe("generate", () => {
     );
   });
 
-  it("uses Void for operations that omit input and output", () => {
+  it("uses Void for procedures that omit input and output", () => {
     const output = generate(
       pluginInput({
         ir: schema({

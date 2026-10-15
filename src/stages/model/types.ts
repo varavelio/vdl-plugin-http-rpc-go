@@ -24,12 +24,12 @@ export type GeneratorOptions = {
 /**
  * Structured descriptor for a VPP-2 procedure discovered in the IR.
  */
-export type OperationDescriptor = {
+export type ProcedureDescriptor = {
   rpcName: string;
   rpcGoName: string;
   name: string;
   goName: string;
-  operationTypeName: string;
+  procedureTypeName: string;
   inputTypeName?: string;
   outputTypeName?: string;
   position: Position;
@@ -50,8 +50,7 @@ export type ServiceDescriptor = {
   doc?: string;
   deprecated?: string;
   annotations: Annotation[];
-  operations: OperationDescriptor[];
-  procedures: OperationDescriptor[];
+  procedures: ProcedureDescriptor[];
 };
 
 /**
@@ -62,5 +61,5 @@ export type GeneratorContext = {
   schema: IrSchema;
   options: GeneratorOptions;
   services: ServiceDescriptor[];
-  procedures: OperationDescriptor[];
+  procedures: ProcedureDescriptor[];
 };
