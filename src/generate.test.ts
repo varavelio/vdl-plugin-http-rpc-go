@@ -212,6 +212,53 @@ describe("generate", () => {
     );
   });
 
+  it("renders Deprecated notes for deprecated services and procedures", () => {
+    const input = pluginInput({
+      ir: schema({
+        types: [
+          typeDef(
+            "Legacy",
+            objectType([
+              field("old", objectType([]), {
+                annotations: [annotation("proc"), annotation("deprecated")],
+              }),
+            ]),
+            {
+              annotations: [
+                annotation("httpRpc"),
+                annotation("deprecated", stringLiteral("Use NewLegacy.")),
+              ],
+            },
+          ),
+        ],
+      }),
+      options: {
+        package: "clientpkg",
+        target: "client",
+        typesImport: "fixture/internal/types",
+      },
+    });
+
+    const client = generate({
+      ...input,
+      options: { ...input.options, target: "client" },
+    });
+    const server = generate({
+      ...input,
+      options: { ...input.options, target: "server" },
+    });
+
+    for (const output of [client, server]) {
+      expect(output.errors).toBeUndefined();
+      expect(output.files?.[0]?.content).toContain(
+        "Deprecated: Use NewLegacy.",
+      );
+      expect(output.files?.[0]?.content).toContain(
+        "Deprecated: This symbol is deprecated and should not be used in new code.",
+      );
+    }
+  });
+
   it("returns SDK RPC validation errors before modeling", () => {
     const output = generate(
       pluginInput({

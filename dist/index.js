@@ -2830,36 +2830,19 @@ function getAnnotationArg(annotations, name) {
 }
 __name(getAnnotationArg, "getAnnotationArg");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/utils/ir/unwrap-literal.js
-function unwrapLiteral(value) {
-  return unwrapLiteralValue(value);
+// node_modules/@varavel/vdl-plugin-sdk/dist/utils/deprecations/get-deprecation-message.js
+function getDeprecationMessage(annotations) {
+  const argument = getAnnotationArg(annotations, "deprecated");
+  if ((argument === null || argument === void 0 ? void 0 : argument.kind) !== "string") return;
+  return argument.stringValue;
 }
-__name(unwrapLiteral, "unwrapLiteral");
-function unwrapLiteralValue(value) {
-  switch (value.kind) {
-    case "string":
-      return value.stringValue;
-    case "int":
-      return value.intValue;
-    case "float":
-      return value.floatValue;
-    case "bool":
-      return value.boolValue;
-    case "object": {
-      var _value$objectEntries;
-      const resolvedObject = {};
-      const entries = (_value$objectEntries = value.objectEntries) !== null && _value$objectEntries !== void 0 ? _value$objectEntries : [];
-      for (const entry of entries) resolvedObject[entry.key] = unwrapLiteralValue(entry.value);
-      return resolvedObject;
-    }
-    case "array":
-      var _value$arrayItems;
-      return ((_value$arrayItems = value.arrayItems) !== null && _value$arrayItems !== void 0 ? _value$arrayItems : []).map((item) => unwrapLiteralValue(item));
-    default:
-      return null;
-  }
+__name(getDeprecationMessage, "getDeprecationMessage");
+
+// node_modules/@varavel/vdl-plugin-sdk/dist/utils/deprecations/is-deprecated.js
+function isDeprecated(annotations) {
+  return getAnnotation(annotations, "deprecated") !== void 0;
 }
-__name(unwrapLiteralValue, "unwrapLiteralValue");
+__name(isDeprecated, "isDeprecated");
 
 // src/stages/model/build-context.ts
 function createGeneratorContext(options) {
@@ -2900,7 +2883,7 @@ function buildServiceDescriptor(typeDef) {
     goName: toGoTypeName(typeDef.name),
     position: typeDef.position,
     doc: typeDef.doc,
-    deprecated: getDeprecatedMessage(typeDef.annotations),
+    deprecated: deprecationNote(typeDef.annotations),
     annotations: typeDef.annotations,
     procedures: proceduresLocal
   };
@@ -2925,7 +2908,7 @@ function buildProcedureDescriptor(serviceType, field) {
     outputTypeName: outputField ? toInlineTypeName(procedureTypeName, outputField.name) : void 0,
     position: field.position,
     doc: field.doc,
-    deprecated: getDeprecatedMessage(field.annotations),
+    deprecated: deprecationNote(field.annotations),
     annotations: field.annotations.filter(
       (annotation) => annotation.name !== "proc"
     ),
@@ -2941,17 +2924,14 @@ function findProcedureField(procedureField, name) {
   );
 }
 __name(findProcedureField, "findProcedureField");
-function getDeprecatedMessage(annotations) {
-  const argument = getAnnotationArg(annotations, "deprecated");
-  if (!getAnnotation(annotations, "deprecated")) {
+function deprecationNote(annotations) {
+  var _a3;
+  if (!isDeprecated(annotations)) {
     return void 0;
   }
-  if (!argument) {
-    return "";
-  }
-  return unwrapLiteral(argument);
+  return (_a3 = getDeprecationMessage(annotations)) != null ? _a3 : "";
 }
-__name(getDeprecatedMessage, "getDeprecatedMessage");
+__name(deprecationNote, "deprecationNote");
 
 // node_modules/@varavel/vdl-plugin-sdk/dist/utils/options/get-option-string.js
 function getOptionString(options, key, defaultValue) {

@@ -1,6 +1,7 @@
 import {
   annotation,
   field,
+  intLiteral,
   objectLiteral,
   objectType,
   pluginInput,
@@ -155,5 +156,53 @@ describe("createGeneratorContext", () => {
       inputTypeName: undefined,
       outputTypeName: undefined,
     });
+  });
+
+  it("marks deprecated services and procedures with SDK helpers", () => {
+    const input = pluginInput({
+      ir: schema({
+        types: [
+          typeDef(
+            "Legacy",
+            objectType([
+              field("old", objectType([]), {
+                annotations: [annotation("proc"), annotation("deprecated")],
+              }),
+              field("weird", objectType([]), {
+                annotations: [
+                  annotation("proc"),
+                  annotation("deprecated", intLiteral(1)),
+                ],
+              }),
+              field("fresh", objectType([]), {
+                annotations: [annotation("proc")],
+              }),
+            ]),
+            {
+              annotations: [
+                annotation("httpRpc"),
+                annotation("deprecated", stringLiteral("Use NewLegacy.")),
+              ],
+            },
+          ),
+        ],
+      }),
+    });
+
+    const result = createGeneratorContext({
+      input,
+      generatorOptions: {
+        jsonPackage: "encoding/json",
+        packageName: "client",
+        target: "client",
+        typesImport: "fixture/internal/types",
+      },
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.context?.services[0]?.deprecated).toBe("Use NewLegacy.");
+    expect(result.context?.procedures[0]?.deprecated).toBe("");
+    expect(result.context?.procedures[1]?.deprecated).toBe("");
+    expect(result.context?.procedures[2]?.deprecated).toBeUndefined();
   });
 });

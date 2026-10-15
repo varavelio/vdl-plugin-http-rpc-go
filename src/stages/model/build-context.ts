@@ -5,10 +5,10 @@ import type {
   TypeDef,
 } from "@varavel/vdl-plugin-sdk";
 import {
-  getAnnotation,
-  getAnnotationArg,
-  unwrapLiteral,
-} from "@varavel/vdl-plugin-sdk/utils/ir";
+  getDeprecationMessage,
+  isDeprecated,
+} from "@varavel/vdl-plugin-sdk/utils/deprecations";
+import { getAnnotation } from "@varavel/vdl-plugin-sdk/utils/ir";
 import {
   toGoFieldName,
   toGoTypeName,
@@ -74,7 +74,7 @@ function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
     goName: toGoTypeName(typeDef.name),
     position: typeDef.position,
     doc: typeDef.doc,
-    deprecated: getDeprecatedMessage(typeDef.annotations),
+    deprecated: deprecationNote(typeDef.annotations),
     annotations: typeDef.annotations,
     procedures: proceduresLocal,
   };
@@ -111,7 +111,7 @@ function buildProcedureDescriptor(
       : undefined,
     position: field.position,
     doc: field.doc,
-    deprecated: getDeprecatedMessage(field.annotations),
+    deprecated: deprecationNote(field.annotations),
     annotations: field.annotations.filter(
       (annotation) => annotation.name !== "proc",
     ),
@@ -133,17 +133,12 @@ function findProcedureField(
 }
 
 /**
- * Extracts the deprecation message from an annotation list when present.
+ * Keeps bare `@deprecated` visible: an empty note renders the default message.
  */
-function getDeprecatedMessage(annotations: Annotation[]): string | undefined {
-  const argument = getAnnotationArg(annotations, "deprecated");
-  if (!getAnnotation(annotations, "deprecated")) {
+function deprecationNote(annotations: Annotation[]): string | undefined {
+  if (!isDeprecated(annotations)) {
     return undefined;
   }
 
-  if (!argument) {
-    return "";
-  }
-
-  return unwrapLiteral<string>(argument);
+  return getDeprecationMessage(annotations) ?? "";
 }
