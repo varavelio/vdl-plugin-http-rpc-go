@@ -50,7 +50,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@<version>" // Use a version from plugin releases
+      src "varavelio/vdl-plugin-http-rpc-go@<version>" // Use a version from plugin releases
       schema "./schema.vdl"
       outDir "./internal/client"
       options {
@@ -60,7 +60,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@<version>" // Use a version from plugin releases
+      src "varavelio/vdl-plugin-http-rpc-go@<version>" // Use a version from plugin releases
       schema "./schema.vdl"
       outDir "./internal/server"
       options {
