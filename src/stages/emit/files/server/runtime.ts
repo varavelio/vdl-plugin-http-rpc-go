@@ -125,6 +125,13 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // Path returns the VPP-2 transport path for the current procedure.
   func (h *HandlerContext[T, I]) Path() string { return h.procedure.Path }
 
+  // InputAs returns the request input as O and reports whether it holds that type.
+  // Use it in global middleware and error handlers, where Input is any.
+  func (h *HandlerContext[T, I]) InputAs[O any]() (O, bool) {
+    typed, ok := any(h.Input).(O)
+    return typed, ok
+  }
+
   // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //
   //   - T: Application-defined context type (props).

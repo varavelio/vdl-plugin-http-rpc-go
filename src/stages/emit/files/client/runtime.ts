@@ -17,6 +17,13 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		Annotations []Annotation
 	}
 
+	// InputAs returns the request input as O and reports whether it holds that type.
+	// Use it in interceptors and retry deciders, where Input is any.
+	func (r RequestInfo) InputAs[O any]() (O, bool) {
+		typed, ok := r.Input.(O)
+		return typed, ok
+	}
+
 	// RetryDecisionContext contains the information passed to a retry decider.
 	//
 	// The generated client evaluates this context after each failed attempt so

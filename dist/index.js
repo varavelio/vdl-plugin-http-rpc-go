@@ -970,6 +970,13 @@ var CLIENT_RUNTIME = dedent2(
 		Annotations []Annotation
 	}
 
+	// InputAs returns the request input as O and reports whether it holds that type.
+	// Use it in interceptors and retry deciders, where Input is any.
+	func (r RequestInfo) InputAs[O any]() (O, bool) {
+		typed, ok := r.Input.(O)
+		return typed, ok
+	}
+
 	// RetryDecisionContext contains the information passed to a retry decider.
 	//
 	// The generated client evaluates this context after each failed attempt so
@@ -2000,6 +2007,13 @@ var SERVER_RUNTIME = dedent2(
 
   // Path returns the VPP-2 transport path for the current procedure.
   func (h *HandlerContext[T, I]) Path() string { return h.procedure.Path }
+
+  // InputAs returns the request input as O and reports whether it holds that type.
+  // Use it in global middleware and error handlers, where Input is any.
+  func (h *HandlerContext[T, I]) InputAs[O any]() (O, bool) {
+    typed, ok := any(h.Input).(O)
+    return typed, ok
+  }
 
   // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //

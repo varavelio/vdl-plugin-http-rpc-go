@@ -212,6 +212,52 @@ describe("generate", () => {
     );
   });
 
+  it("exposes typed input accessors for middleware and interceptors", () => {
+    const input = pluginInput({
+      ir: schema({
+        types: [
+          typeDef(
+            "Legacy",
+            objectType([
+              field("old", objectType([]), {
+                annotations: [annotation("proc"), annotation("deprecated")],
+              }),
+            ]),
+            {
+              annotations: [
+                annotation("httpRpc"),
+                annotation("deprecated", stringLiteral("Use NewLegacy.")),
+              ],
+            },
+          ),
+        ],
+      }),
+      options: {
+        package: "clientpkg",
+        target: "client",
+        typesImport: "fixture/internal/types",
+      },
+    });
+
+    const client = generate({
+      ...input,
+      options: { ...input.options, target: "client" },
+    });
+    const server = generate({
+      ...input,
+      options: { ...input.options, target: "server" },
+    });
+
+    expect(client.errors).toBeUndefined();
+    expect(client.files?.[0]?.content).toContain(
+      "func (r RequestInfo) InputAs[O any]() (O, bool)",
+    );
+    expect(server.errors).toBeUndefined();
+    expect(server.files?.[0]?.content).toContain(
+      "func (h *HandlerContext[T, I]) InputAs[O any]() (O, bool)",
+    );
+  });
+
   it("renders Deprecated notes for deprecated services and procedures", () => {
     const input = pluginInput({
       ir: schema({

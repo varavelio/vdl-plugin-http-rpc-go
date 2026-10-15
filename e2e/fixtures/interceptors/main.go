@@ -38,6 +38,9 @@ func main() {
 
 	client := rpcclient.NewClient(ts.URL + "/rpc").
 		WithInterceptor(func(ctx context.Context, req rpcclient.RequestInfo, next rpcclient.Invoker) (rpcclient.Response[json.RawMessage], error) {
+			if _, ok := req.InputAs[vdltypes.ServiceTestInput](); !ok {
+				return rpcclient.Response[json.RawMessage]{}, fmt.Errorf("expected ServiceTestInput, got %T", req.Input)
+			}
 			return next(context.WithValue(ctx, interceptKey{}, "true"), req)
 		}).
 		WithHeaderProvider(func(ctx context.Context, h http.Header) error {
