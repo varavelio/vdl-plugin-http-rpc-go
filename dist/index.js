@@ -2064,6 +2064,16 @@ var SERVER_RUNTIME = dedent2(
   // request processing pipeline.
   //
   //   - T: Application-defined context type (props).
+  // defaultMaxRequestBodyBytes caps request bodies at 4 MiB unless tuned
+  // with SetMaxRequestBodyBytes. It bounds memory per request so a hostile
+  // client cannot exhaust the server with a huge payload.
+  const defaultMaxRequestBodyBytes = 4 << 20
+
+  // ErrRequestBodyTooLarge reports a body beyond the configured limit.
+  // HandleRequest returns it without writing a response; HTTPHandler maps it
+  // to 413. Manual wiring should check it with errors.Is before responding.
+  var ErrRequestBodyTooLarge = errors.New("vdl rpc: request body too large")
+
   type internalServer[T any] struct {
     // handlersMu protects all handler maps and middleware slices from concurrent access
     handlersMu sync.RWMutex
@@ -2075,6 +2085,10 @@ var SERVER_RUNTIME = dedent2(
     // procHandlers stores the final implementation functions for procedures
     // Map format: rpcName -> procName -> handler
     procHandlers map[string]map[string]ProcHandlerFunc[T, any, any]
+
+    // maxRequestBodyBytes caps request body bytes per call. Atomic because
+    // handleRequest reads it on every request without holding handlersMu.
+    maxRequestBodyBytes atomic.Int64
 
 
     // globalMiddlewares contains middlewares that run for every procedure request
@@ -2088,15 +2102,9 @@ var SERVER_RUNTIME = dedent2(
     // Map format: rpcName -> procName -> middlewares
     procMiddlewares map[string]map[string][]ProcMiddlewareFunc[T, any, any]
 
-
-
     // procDeserializers contains per-procedure input deserializers
     // Map format: rpcName -> procName -> deserializer
     procDeserializers map[string]map[string]DeserializerFunc
-
-
-
-
 
     // globalErrorHandler is the global error handler
     globalErrorHandler ErrorHandlerFunc[T]
@@ -2143,17 +2151,20 @@ var SERVER_RUNTIME = dedent2(
       procedureDefs[def.RPCName][def.Name] = def
     }
 
-    return &internalServer[T]{
-      handlersMu:            sync.RWMutex{},
-      procedureDefs:       procedureDefs,
-      procHandlers:          procHandlers,
-      globalMiddlewares:     []GlobalMiddlewareFunc[T]{},
-      rpcMiddlewares:        rpcMiddlewares,
-      procMiddlewares:       procMiddlewares,
-      procDeserializers:     procDeserializers,
-      globalErrorHandler:    nil,
-      rpcErrorHandlers:      rpcErrorHandlers,
+    built := &internalServer[T]{
+      handlersMu:         sync.RWMutex{},
+      procedureDefs:      procedureDefs,
+      procHandlers:       procHandlers,
+      globalMiddlewares:  []GlobalMiddlewareFunc[T]{},
+      rpcMiddlewares:     rpcMiddlewares,
+      procMiddlewares:    procMiddlewares,
+      procDeserializers:  procDeserializers,
+      globalErrorHandler: nil,
+      rpcErrorHandlers:   rpcErrorHandlers,
     }
+
+    built.maxRequestBodyBytes.Store(defaultMaxRequestBodyBytes)
+    return built
   }
 
   // addGlobalMiddleware registers a global middleware that executes for every procedure request.
@@ -2272,24 +2283,42 @@ var SERVER_RUNTIME = dedent2(
       return fmt.Errorf("the HTTP adapter is nil, please provide a valid adapter")
     }
 
-    // Decode the request body into a json.RawMessage. An empty body is valid
-    // empty input per VPP-2 and must not fail the transport.
-    var rawInput json.RawMessage
-    if err := json.NewDecoder(httpAdapter.RequestBody()).Decode(&rawInput); err != nil {
-      if err != io.EOF {
-        // Tolerate empty bodies reported as EOF or unexpected EOF with no bytes.
-        if len(bytes.TrimSpace(rawInput)) != 0 {
-          res := Response[any]{
-            Ok:    false,
-            Error: Error{Message: "Invalid request body"},
-          }
-          return s.writeProcResponse(httpAdapter, res)
-        }
+    // Read the bounded body first so a hostile client cannot exhaust memory.
+    // An empty body stays valid empty input per VPP-2. Oversized bodies fail
+    // closed with ErrRequestBodyTooLarge before any handler runs.
+    maxBody := s.maxRequestBodyBytes.Load()
+    raw, readErr := io.ReadAll(io.LimitReader(httpAdapter.RequestBody(), maxBody+1))
+    if readErr != nil {
+      res := Response[any]{
+        Ok:    false,
+        Error: Error{Message: "Invalid request body"},
       }
-      rawInput = nil
+      return s.writeProcResponse(httpAdapter, res)
     }
-    if len(bytes.TrimSpace(rawInput)) == 0 {
+    if int64(len(raw)) > maxBody {
+      return ErrRequestBodyTooLarge
+    }
+
+    var rawInput json.RawMessage
+    if len(bytes.TrimSpace(raw)) == 0 {
       rawInput = nil
+    } else {
+      decoder := json.NewDecoder(bytes.NewReader(raw))
+      if err := decoder.Decode(&rawInput); err != nil {
+        res := Response[any]{
+          Ok:    false,
+          Error: Error{Message: "Invalid request body"},
+        }
+        return s.writeProcResponse(httpAdapter, res)
+      }
+      var trailing any
+      if err := decoder.Decode(&trailing); err != io.EOF {
+        res := Response[any]{
+          Ok:    false,
+          Error: Error{Message: "Invalid request body"},
+        }
+        return s.writeProcResponse(httpAdapter, res)
+      }
     }
 
     procedure, canonicalRPC, canonicalProcedure, procedureExists := s.lookupProcedure(rpcName, procedureName)
@@ -2483,12 +2512,26 @@ var SERVER_RUNTIME = dedent2(
     s.intServer.setGlobalErrorHandler(handler)
   }
 
+	// SetMaxRequestBodyBytes caps request body bytes accepted per procedure call.
+	// Bodies beyond the cap fail closed with ErrRequestBodyTooLarge before any
+	// handler or middleware runs. Values <= 0 restore the 4 MiB default.
+	func (s *Server[T]) SetMaxRequestBodyBytes(n int64) {
+		if n <= 0 {
+			n = defaultMaxRequestBodyBytes
+		}
+		s.intServer.maxRequestBodyBytes.Store(n)
+	}
+
   // HandleRequest processes an incoming RPC request and drives the complete
 	// request lifecycle (parsing, middleware chains, handler dispatch, response).
 	//
 	// rpcName and procedureName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
   //
 	// httpAdapter bridges VDL RPC with your HTTP framework (use NewNetHTTPAdapter for net/http or compatible).
+	//
+	// It returns ErrRequestBodyTooLarge without writing a response when the body
+	// exceeds the limit; callers wiring HandleRequest manually should map it
+	// (HTTPHandler already maps it to 413).
 	//
 	// Example (net/http):
   //
@@ -2524,19 +2567,26 @@ var SERVER_RUNTIME = dedent2(
     if propsFn == nil {
       panic("vdl rpc: HTTPHandler requires a non-nil props function")
     }
+
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
       if r.Method != http.MethodPost {
         w.Header().Set("Allow", http.MethodPost)
         http.Error(w, "method not allowed, use POST", http.StatusMethodNotAllowed)
         return
       }
+
       segments := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
       if len(segments) != 2 || segments[0] == "" || segments[1] == "" {
         http.NotFound(w, r)
         return
       }
+
       adapter := NewNetHTTPAdapter(w, r)
-      _ = s.HandleRequest(r.Context(), propsFn(r), segments[0], segments[1], adapter)
+      if err := s.HandleRequest(r.Context(), propsFn(r), segments[0], segments[1], adapter); err != nil {
+        if errors.Is(err, ErrRequestBodyTooLarge) {
+          http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+        }
+      }
     })
   }
 
@@ -2577,12 +2627,14 @@ function renderServerImports(context) {
   g.block(() => {
     g.line('"bytes"');
     g.line('"context"');
+    g.line('"errors"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
     g.line('"strings"');
     g.line('"sync"');
+    g.line('"sync/atomic"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -2752,12 +2804,26 @@ function renderServerProcedure(service, procedure, context) {
             g.line(`return ${outputType}{}, err`);
           });
           g.line("}");
-          g.line(`typedOutput, _ := genericOutput.(${outputType})`);
+          g.line(`typedOutput, ok := genericOutput.(${outputType})`);
+          g.line("if !ok {");
+          g.block(() => {
+            g.line(
+              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${procedure.name}", genericOutput)`
+            );
+          });
+          g.line("}");
           g.line("return typedOutput, nil");
         });
         g.line("}");
         g.line("typedChain := mw(typedNext)");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
+        g.line(`typedInput, ok := cGeneric.Input.(${inputType})`);
+        g.line("if !ok {");
+        g.block(() => {
+          g.line(
+            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`
+          );
+        });
+        g.line("}");
         g.line(`cSpecific := &${handlerContextName}[T]{`);
         g.block(() => {
           g.line("Props: cGeneric.Props,");
@@ -2788,7 +2854,14 @@ function renderServerProcedure(service, procedure, context) {
       `adaptedHandler := func(cGeneric *HandlerContext[T, any]) (any, error) {`
     );
     g.block(() => {
-      g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
+      g.line(`typedInput, ok := cGeneric.Input.(${inputType})`);
+      g.line("if !ok {");
+      g.block(() => {
+        g.line(
+          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`
+        );
+      });
+      g.line("}");
       g.line(`cSpecific := &${handlerContextName}[T]{`);
       g.block(() => {
         g.line("Props: cGeneric.Props,");

@@ -219,6 +219,21 @@ mux.Handle("/rpc/", http.StripPrefix("/rpc", server.HTTPHandler(
 
 Non-`POST` requests get `405`, paths without exactly two segments get `404`.
 
+### Server Security
+
+Generated servers fail closed by default:
+
+- Request bodies cap at 4 MiB per call (`Server.SetMaxRequestBodyBytes` tunes
+  it, `<= 0` restores the default). Oversized bodies return
+  `ErrRequestBodyTooLarge` before any middleware or handler runs; `HTTPHandler`
+  maps it to `413`. Manual `HandleRequest` wiring should check it with
+  `errors.Is`.
+- Bodies must hold exactly one JSON value; trailing garbage is rejected as an
+  invalid body.
+- Input shapes validate through the generated `vdl-plugin-go` types before
+  handlers run, and internal type mismatches return errors instead of silent
+  zero values.
+
 `baseURL` in `NewClient(baseURL)` should point to your RPC prefix (for example: `/rpc`). The generated client appends `/{lowerFirst(RPC)}/{procedure}` automatically per VPP-2.
 
 ## License

@@ -49,12 +49,14 @@ function renderServerImports(context: GeneratorContext): string {
   g.block(() => {
     g.line('"bytes"');
     g.line('"context"');
+    g.line('"errors"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
     g.line('"strings"');
     g.line('"sync"');
+    g.line('"sync/atomic"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -256,12 +258,26 @@ function renderServerProcedure(
             g.line(`return ${outputType}{}, err`);
           });
           g.line("}");
-          g.line(`typedOutput, _ := genericOutput.(${outputType})`);
+          g.line(`typedOutput, ok := genericOutput.(${outputType})`);
+          g.line("if !ok {");
+          g.block(() => {
+            g.line(
+              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${procedure.name}", genericOutput)`,
+            );
+          });
+          g.line("}");
           g.line("return typedOutput, nil");
         });
         g.line("}");
         g.line("typedChain := mw(typedNext)");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
+        g.line(`typedInput, ok := cGeneric.Input.(${inputType})`);
+        g.line("if !ok {");
+        g.block(() => {
+          g.line(
+            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`,
+          );
+        });
+        g.line("}");
         g.line(`cSpecific := &${handlerContextName}[T]{`);
         g.block(() => {
           g.line("Props: cGeneric.Props,");
@@ -293,7 +309,14 @@ function renderServerProcedure(
       `adaptedHandler := func(cGeneric *HandlerContext[T, any]) (any, error) {`,
     );
     g.block(() => {
-      g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
+      g.line(`typedInput, ok := cGeneric.Input.(${inputType})`);
+      g.line("if !ok {");
+      g.block(() => {
+        g.line(
+          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`,
+        );
+      });
+      g.line("}");
       g.line(`cSpecific := &${handlerContextName}[T]{`);
       g.block(() => {
         g.line("Props: cGeneric.Props,");

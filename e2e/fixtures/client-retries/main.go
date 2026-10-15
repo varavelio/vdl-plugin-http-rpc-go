@@ -42,6 +42,17 @@ func main() {
 	defer ts.Close()
 
 	client := rpcclient.NewClient(ts.URL + "/rpc").Build()
+
+	// MaxAttempts below 1 clamps to a single attempt instead of skipping the call.
+	base := attempts.Load()
+	if _, err := client.RPCs.Service().Procs.Flaky().WithRetryConfig(rpcclient.RetryConfig{}).Execute(context.Background(), vdltypes.ServiceFlakyInput{}); err == nil {
+		panic("expected transport error for single failed attempt")
+	}
+	if attempts.Load()-base != 1 {
+		panic(fmt.Sprintf("expected 1 attempt, got %d", attempts.Load()-base))
+	}
+	attempts.Store(0)
+
 	retryConf := rpcclient.RetryConfig{
 		MaxAttempts:     3,
 		InitialDelay:    10 * time.Millisecond,

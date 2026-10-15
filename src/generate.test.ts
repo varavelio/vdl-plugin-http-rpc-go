@@ -288,6 +288,9 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain(
       "func (s *Server[T]) HTTPHandler(propsFn PropsFunc[T]) http.Handler",
     );
+    expect(output.files?.[0]?.content).toContain("ErrRequestBodyTooLarge");
+    expect(output.files?.[0]?.content).toContain("SetMaxRequestBodyBytes");
+    expect(output.files?.[0]?.content).toContain("unexpected input type %T");
   });
 
   it("renders Deprecated notes for deprecated services and procedures", () => {
