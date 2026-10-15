@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type Chat {
   @proc
   @cache({ scope "room" })
@@ -14,7 +14,7 @@ type Chat {
     }
   }
 
-  @stream
+  @proc
   @topic({ name "messages" })
   events {
     input {

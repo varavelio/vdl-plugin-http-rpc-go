@@ -2,7 +2,7 @@ const config = {
   version 1
   plugins [
     {
-      src "varavelio/vdl-plugin-go@v0.1.2"
+      src "varavelio/vdl-plugin-go@v0.1.4"
       schema "./schema.vdl"
       outDir "./internal/types"
       options {

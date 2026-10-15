@@ -20,13 +20,12 @@ func main() {
 		return vdltypes.JobsCreateOutput{Attempts: 2}, nil
 	})
 
-	server.RPCs.Jobs().Streams.Updates().Handle(func(c *rpcserver.JobsUpdatesHandlerContext[struct{}], emit rpcserver.JobsUpdatesEmitFunc[struct{}]) error {
-		return emit(c, vdltypes.JobsUpdatesOutput{Seq: 1})
+	server.RPCs.Jobs().Procs.Updates().Handle(func(c *rpcserver.JobsUpdatesHandlerContext[struct{}]) (vdltypes.JobsUpdatesOutput, error) {
+		return vdltypes.JobsUpdatesOutput{Seq: 1}, nil
 	})
 
 	var procAttempts atomic.Int32
-	var streamAttempts atomic.Int32
-	var reconnectCallbacks atomic.Int32
+	var updatesAttempts atomic.Int32
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /rpc/{rpc}/{operation}", func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +36,7 @@ func main() {
 				return
 			}
 		case "updates":
-			if streamAttempts.Add(1) == 1 {
+			if updatesAttempts.Add(1) == 1 {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
@@ -52,7 +51,7 @@ func main() {
 
 	client := rpcclient.NewClient(ts.URL + "/rpc").Build()
 
-	var sawRetryAnnotation atomic.Bool
+	var sawHighAnnotation atomic.Bool
 	retryConf := rpcclient.RetryConfig{
 		MaxAttempts:     2,
 		InitialDelay:    10 * time.Millisecond,
@@ -60,8 +59,8 @@ func main() {
 		DelayMultiplier: 1,
 		Jitter:          0,
 		ShouldRetry: func(_ context.Context, info rpcclient.RetryDecisionContext) bool {
-			sawRetryAnnotation.Store(matchAnnotation(info.Request.Annotations, "retryable", "level", "high"))
-			return sawRetryAnnotation.Load() && info.ResponseStatus == http.StatusInternalServerError
+			sawHighAnnotation.Store(matchAnnotation(info.Request.Annotations, "retryable", "level", "high"))
+			return sawHighAnnotation.Load() && info.ResponseStatus == http.StatusInternalServerError
 		},
 	}
 
@@ -72,47 +71,32 @@ func main() {
 	if procResult.Attempts != 2 {
 		panic(fmt.Sprintf("expected 2 attempts in proc output, got %d", procResult.Attempts))
 	}
-	if !sawRetryAnnotation.Load() {
+	if !sawHighAnnotation.Load() {
 		panic("retry decider did not observe the retryable annotation")
 	}
 
-	var sawReconnectAnnotation atomic.Bool
-	reconnectConf := rpcclient.ReconnectConfig{
-		MaxAttempts:     1,
+	var sawLowAnnotation atomic.Bool
+	updatesRetryConf := rpcclient.RetryConfig{
+		MaxAttempts:     2,
 		InitialDelay:    10 * time.Millisecond,
 		MaxDelay:        10 * time.Millisecond,
 		DelayMultiplier: 1,
 		Jitter:          0,
-		ShouldReconnect: func(_ context.Context, info rpcclient.ReconnectDecisionContext) bool {
-			sawReconnectAnnotation.Store(matchAnnotation(info.Request.Annotations, "reconnectable", "channel", "jobs"))
-			return sawReconnectAnnotation.Load() && info.ResponseStatus == http.StatusInternalServerError
+		ShouldRetry: func(_ context.Context, info rpcclient.RetryDecisionContext) bool {
+			sawLowAnnotation.Store(matchAnnotation(info.Request.Annotations, "retryable", "level", "low"))
+			return sawLowAnnotation.Load() && info.ResponseStatus == http.StatusInternalServerError
 		},
 	}
 
-	stream := client.RPCs.Jobs().Streams.Updates().
-		WithReconnectConfig(reconnectConf).
-		OnReconnect(func(attempt int, _ time.Duration) {
-			if attempt == 1 {
-				reconnectCallbacks.Add(1)
-			}
-		}).
-		Execute(context.Background(), vdltypes.JobsUpdatesInput{WorkerId: "worker-1"})
-
-	event := <-stream
-	if !event.Ok {
-		panic(event.Error)
+	updatesResult, err := client.RPCs.Jobs().Procs.Updates().WithRetryConfig(updatesRetryConf).Execute(context.Background(), vdltypes.JobsUpdatesInput{WorkerId: "worker-1"})
+	if err != nil {
+		panic(err)
 	}
-	if event.Output.Seq != 1 {
-		panic(fmt.Sprintf("expected stream seq 1, got %d", event.Output.Seq))
+	if updatesResult.Seq != 1 {
+		panic(fmt.Sprintf("expected updates seq 1, got %d", updatesResult.Seq))
 	}
-	if reconnectCallbacks.Load() != 1 {
-		panic(fmt.Sprintf("expected 1 reconnect callback, got %d", reconnectCallbacks.Load()))
-	}
-	if !sawReconnectAnnotation.Load() {
-		panic("reconnect decider did not observe the reconnectable annotation")
-	}
-
-	for range stream {
+	if !sawLowAnnotation.Load() {
+		panic("retry decider did not observe the low retryable annotation")
 	}
 
 	fmt.Println("client policies ok")

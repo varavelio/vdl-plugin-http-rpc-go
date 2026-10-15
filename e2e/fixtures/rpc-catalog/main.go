@@ -8,38 +8,34 @@ import (
 )
 
 func main() {
-	if rpcclient.VDLPaths.MyService.MyProc != "/MyService/myProc" {
-		fail("VDLPaths.MyService.MyProc", "/MyService/myProc", rpcclient.VDLPaths.MyService.MyProc)
+	if rpcclient.VDLPaths.MyService.MyProc != "/myService/myProc" {
+		fail("VDLPaths.MyService.MyProc", "/myService/myProc", rpcclient.VDLPaths.MyService.MyProc)
 	}
-	if rpcclient.VDLPaths.MyService.MyStream != "/MyService/myStream" {
-		fail("VDLPaths.MyService.MyStream", "/MyService/myStream", rpcclient.VDLPaths.MyService.MyStream)
+	if rpcclient.VDLPaths.MyService.MyOtherProc != "/myService/myOtherProc" {
+		fail("VDLPaths.MyService.MyOtherProc", "/myService/myOtherProc", rpcclient.VDLPaths.MyService.MyOtherProc)
 	}
 
-	var foundProc bool
+	found := map[string]bool{}
 	for _, operation := range rpcclient.VDLProcedures {
 		if operation.RPCName == "MyService" && operation.Name == "myProc" {
-			foundProc = true
-			if operation.Path() != "/MyService/myProc" {
-				fail("VDLProcedures Path()", "/MyService/myProc", operation.Path())
+			found["myProc"] = true
+			if operation.Path() != "/myService/myProc" {
+				fail("VDLProcedures Path()", "/myService/myProc", operation.Path())
+			}
+		}
+		if operation.RPCName == "MyService" && operation.Name == "myOtherProc" {
+			found["myOtherProc"] = true
+			if operation.Path() != "/myService/myOtherProc" {
+				fail("VDLProcedures Path()", "/myService/myOtherProc", operation.Path())
 			}
 		}
 	}
-	if !foundProc {
+	if !found["myProc"] {
 		fmt.Fprintln(os.Stderr, "myProc not found in VDLProcedures")
 		os.Exit(1)
 	}
-
-	var foundStream bool
-	for _, operation := range rpcclient.VDLStreams {
-		if operation.RPCName == "MyService" && operation.Name == "myStream" {
-			foundStream = true
-			if operation.Path() != "/MyService/myStream" {
-				fail("VDLStreams Path()", "/MyService/myStream", operation.Path())
-			}
-		}
-	}
-	if !foundStream {
-		fmt.Fprintln(os.Stderr, "myStream not found in VDLStreams")
+	if !found["myOtherProc"] {
+		fmt.Fprintln(os.Stderr, "myOtherProc not found in VDLProcedures")
 		os.Exit(1)
 	}
 

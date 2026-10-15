@@ -1,6 +1,6 @@
-@rpc
+@httpRpc
 type Service {
-  @stream
+  @proc
   counter {
     input {}
 

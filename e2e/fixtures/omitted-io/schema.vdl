@@ -1,8 +1,8 @@
-@rpc
+@httpRpc
 type Commands {
   @proc
   ping {}
 
-  @stream
+  @proc
   heartbeat {}
 }

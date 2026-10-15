@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type A {
   @proc
   x {
@@ -7,7 +7,7 @@ type A {
   }
 }
 
-@rpc
+@httpRpc
 type B {
   @proc
   y {

@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type Auth {
   @proc
   login {
@@ -7,7 +7,7 @@ type Auth {
   }
 }
 
-@rpc
+@httpRpc
 type Users {
   @proc
   get {

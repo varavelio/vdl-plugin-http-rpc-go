@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type MyService {
   @proc
   myProc {
@@ -6,8 +6,8 @@ type MyService {
     output {}
   }
 
-  @stream
-  myStream {
+  @proc
+  myOtherProc {
     input {}
     output {}
   }

@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type Jobs {
   @proc
   @retryable({ level "high" })
@@ -12,8 +12,8 @@ type Jobs {
     }
   }
 
-  @stream
-  @reconnectable({ channel "jobs" })
+  @proc
+  @retryable({ level "low" })
   updates {
     input {
       workerId string

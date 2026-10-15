@@ -3,7 +3,7 @@ import { existsSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, it } from "vitest";
 
-const goModTemplate = ["module fixture", "", "go 1.26", ""].join("\n");
+const goModTemplate = ["module fixture", "", "go 1.27.2", ""].join("\n");
 
 const fixturesDir = resolve(__dirname, "fixtures");
 const fixtures = readdirSync(fixturesDir, { withFileTypes: true })

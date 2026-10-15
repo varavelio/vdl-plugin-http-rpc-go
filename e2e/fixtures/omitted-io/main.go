@@ -15,8 +15,8 @@ func main() {
 	server.RPCs.Commands().Procs.Ping().Handle(func(c *rpcserver.CommandsPingHandlerContext[struct{}]) (rpcserver.Void, error) {
 		return rpcserver.Void{}, nil
 	})
-	server.RPCs.Commands().Streams.Heartbeat().Handle(func(c *rpcserver.CommandsHeartbeatHandlerContext[struct{}], emit rpcserver.CommandsHeartbeatEmitFunc[struct{}]) error {
-		return emit(c, rpcserver.Void{})
+	server.RPCs.Commands().Procs.Heartbeat().Handle(func(c *rpcserver.CommandsHeartbeatHandlerContext[struct{}]) (rpcserver.Void, error) {
+		return rpcserver.Void{}, nil
 	})
 
 	mux := http.NewServeMux()
@@ -33,13 +33,27 @@ func main() {
 		panic(err)
 	}
 
-	events := client.RPCs.Commands().Streams.Heartbeat().Execute(context.Background(), rpcclient.Void{})
-	event := <-events
-	if !event.Ok {
-		panic(event.Error)
+	if _, err := client.RPCs.Commands().Procs.Heartbeat().Execute(context.Background(), rpcclient.Void{}); err != nil {
+		panic(err)
 	}
 
-	for range events {
+	// VPP-2: server accepts missing body and missing Content-Type as empty input.
+	req, err := http.NewRequest(http.MethodPost, ts.URL+"/rpc/commands/ping", nil)
+	if err != nil {
+		panic(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		panic(fmt.Sprintf("expected 200 for empty body, got %d", resp.StatusCode))
+	}
+	body := make([]byte, 64)
+	n, _ := resp.Body.Read(body)
+	if string(body[:n]) != `{"ok":true}`+"\n" && string(body[:n]) != `{"ok":true}` {
+		panic(fmt.Sprintf("expected {\"ok\":true} for empty body, got %q", string(body[:n])))
 	}
 
 	fmt.Println("omitted io ok")

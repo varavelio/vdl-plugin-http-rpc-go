@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type Service {
   @proc
   flaky {

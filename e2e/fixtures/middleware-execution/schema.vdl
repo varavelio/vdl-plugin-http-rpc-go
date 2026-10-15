@@ -1,4 +1,4 @@
-@rpc
+@httpRpc
 type ServiceA {
   @proc
   proc1 {
@@ -19,7 +19,7 @@ type ServiceA {
   }
 }
 
-@rpc
+@httpRpc
 type ServiceB {
   @proc
   proc1 {

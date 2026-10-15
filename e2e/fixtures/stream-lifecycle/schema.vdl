@@ -1,8 +1,0 @@
-@rpc
-type Service {
-  @stream
-  events {
-    input {}
-    output {}
-  }
-}

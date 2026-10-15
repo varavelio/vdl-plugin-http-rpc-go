@@ -22,37 +22,25 @@ func main() {
 	server.Use(func(next rpcserver.GlobalHandlerFunc[AppProps]) rpcserver.GlobalHandlerFunc[AppProps] {
 		return func(c *rpcserver.HandlerContext[AppProps, any]) (any, error) {
 			c.Props.AnnotationNames = annotationNames(c.Annotations)
-
-			switch c.OperationType() {
-			case rpcserver.OperationTypeProc:
-				expectAnnotationArg(c.Annotations, "cache", "scope", "room")
-			case rpcserver.OperationTypeStream:
-				expectAnnotationArg(c.Annotations, "topic", "name", "messages")
-			}
-
 			return next(c)
 		}
 	})
 
 	server.RPCs.Chat().Procs.SendMessage().Handle(func(c *rpcserver.ChatSendMessageHandlerContext[AppProps]) (vdltypes.ChatSendMessageOutput, error) {
+		expectAnnotationArg(c.Annotations, "cache", "scope", "room")
 		return vdltypes.ChatSendMessageOutput{
 			Accepted:        true,
 			SeenAnnotations: c.Props.AnnotationNames,
 		}, nil
 	})
 
-	server.RPCs.Chat().Streams.Events().Handle(func(c *rpcserver.ChatEventsHandlerContext[AppProps], emit rpcserver.ChatEventsEmitFunc[AppProps]) error {
-		for index, text := range []string{"hello", "world"} {
-			if err := emit(c, vdltypes.ChatEventsOutput{
-				Seq:             int64(index + 1),
-				Text:            text,
-				SeenAnnotations: c.Props.AnnotationNames,
-			}); err != nil {
-				return err
-			}
-		}
-
-		return nil
+	server.RPCs.Chat().Procs.Events().Handle(func(c *rpcserver.ChatEventsHandlerContext[AppProps]) (vdltypes.ChatEventsOutput, error) {
+		expectAnnotationArg(c.Annotations, "topic", "name", "messages")
+		return vdltypes.ChatEventsOutput{
+			Seq:             1,
+			Text:            "hello",
+			SeenAnnotations: c.Props.AnnotationNames,
+		}, nil
 	})
 
 	mux := http.NewServeMux()
@@ -80,20 +68,15 @@ func main() {
 		panic(fmt.Sprintf("expected cache annotation in proc result, got %v", procResult.SeenAnnotations))
 	}
 
-	stream := client.RPCs.Chat().Streams.Events().Execute(context.Background(), vdltypes.ChatEventsInput{RoomId: "room-1"})
-	labels := make([]string, 0, 2)
-	for event := range stream {
-		if !event.Ok {
-			panic(event.Error)
-		}
-		labels = append(labels, event.Output.Text)
-		if !slices.Contains(event.Output.SeenAnnotations, "topic") {
-			panic(fmt.Sprintf("expected topic annotation in stream result, got %v", event.Output.SeenAnnotations))
-		}
+	eventResult, err := client.RPCs.Chat().Procs.Events().Execute(context.Background(), vdltypes.ChatEventsInput{RoomId: "room-1"})
+	if err != nil {
+		panic(err)
 	}
-
-	if len(labels) != 2 || labels[0] != "hello" || labels[1] != "world" {
-		panic(fmt.Sprintf("unexpected stream labels: %v", labels))
+	if eventResult.Text != "hello" {
+		panic(fmt.Sprintf("unexpected event text: %v", eventResult.Text))
+	}
+	if !slices.Contains(eventResult.SeenAnnotations, "topic") {
+		panic(fmt.Sprintf("expected topic annotation in event result, got %v", eventResult.SeenAnnotations))
 	}
 
 	fmt.Println("roundtrip ok")
