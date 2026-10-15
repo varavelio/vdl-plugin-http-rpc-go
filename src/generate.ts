@@ -1,5 +1,5 @@
 import type { PluginInput, PluginOutput } from "@varavel/vdl-plugin-sdk";
-import { validateIrForRpc } from "@varavel/vdl-plugin-sdk/utils/rpc";
+import { assertValidIrForRpc } from "@varavel/vdl-plugin-sdk/utils/rpc";
 import { toPluginOutputError } from "./shared/errors";
 import { generateFiles } from "./stages/emit/generate-files";
 import { createGeneratorContext } from "./stages/model/build-context";
@@ -15,10 +15,7 @@ export function generate(input: PluginInput): PluginOutput {
       return { errors: optionsResult.errors };
     }
 
-    const rpcValidationErrors = validateIrForRpc(input.ir);
-    if (rpcValidationErrors) {
-      return { errors: rpcValidationErrors };
-    }
+    assertValidIrForRpc(input.ir);
 
     const contextResult = createGeneratorContext({
       input,

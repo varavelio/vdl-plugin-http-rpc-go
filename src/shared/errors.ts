@@ -35,9 +35,15 @@ export function toPluginOutputError(error: unknown): PluginOutputError {
   }
 
   if (error instanceof Error) {
-    return {
-      message: error.message,
-    };
+    const position = (error as { position?: Position }).position;
+    return position
+      ? {
+          message: error.message,
+          position,
+        }
+      : {
+          message: error.message,
+        };
   }
 
   return {
