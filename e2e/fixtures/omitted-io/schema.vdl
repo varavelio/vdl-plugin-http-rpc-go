@@ -5,4 +5,18 @@ type Commands {
 
   @proc
   heartbeat {}
+
+  @proc
+  clearCache {
+    input {
+      namespace string
+    }
+  }
+
+  @proc
+  rotateKeys {
+    output {
+      rotatedAt string
+    }
+  }
 }
