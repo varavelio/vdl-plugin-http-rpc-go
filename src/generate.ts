@@ -1,12 +1,12 @@
 import type { PluginInput, PluginOutput } from "@varavel/vdl-plugin-sdk";
-import { assertValidIrForRpc } from "@varavel/vdl-plugin-sdk/utils/rpc";
+import { assertValidIrForHttpRpc } from "@varavel/vdl-plugin-sdk/utils/rpc";
 import { toPluginOutputError } from "./shared/errors";
 import { generateFiles } from "./stages/emit/generate-files";
 import { createGeneratorContext } from "./stages/model/build-context";
 import { resolveGeneratorOptions } from "./stages/options/resolve";
 
 /**
- * Runs the complete VDL RPC Go generation pipeline.
+ * Runs the complete VPP-2 HTTP-RPC generation pipeline.
  */
 export function generate(input: PluginInput): PluginOutput {
   try {
@@ -15,7 +15,7 @@ export function generate(input: PluginInput): PluginOutput {
       return { errors: optionsResult.errors };
     }
 
-    assertValidIrForRpc(input.ir);
+    assertValidIrForHttpRpc(input.ir);
 
     const contextResult = createGeneratorContext({
       input,

@@ -47,13 +47,14 @@ function renderServerImports(context: GeneratorContext): string {
   const g = newGenerator().withTabs();
   g.line("import (");
   g.block(() => {
+    g.line('"bytes"');
     g.line('"context"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
     g.line('"sync"');
-    g.line('"time"');
+    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -81,7 +82,6 @@ function renderServerService(
 ): string {
   const rpcStructName = `server${service.goName}RPC`;
   const procsStructName = `server${service.goName}Procs`;
-  const streamsStructName = `server${service.goName}Streams`;
 
   const g = newGenerator().withTabs();
 
@@ -99,7 +99,6 @@ function renderServerService(
     g.block(() => {
       g.line("intServer: r.intServer,");
       g.line(`Procs: &${procsStructName}[T]{intServer: r.intServer},`);
-      g.line(`Streams: &${streamsStructName}[T]{intServer: r.intServer},`);
     });
     g.line("}");
   });
@@ -114,7 +113,6 @@ function renderServerService(
   g.block(() => {
     g.line("intServer *internalServer[T]");
     g.line(`Procs *${procsStructName}[T]`);
-    g.line(`Streams *${streamsStructName}[T]`);
   });
   g.line("}");
   g.break();
@@ -126,19 +124,6 @@ function renderServerService(
   g.line(`func (r *${rpcStructName}[T]) Use(mw GlobalMiddlewareFunc[T]) {`);
   g.block(() => {
     g.line(`r.intServer.addRPCMiddleware(${renderGoString(service.name)}, mw)`);
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `SetStreamConfig sets the default stream configuration for the ${service.name} RPC service.`,
-  );
-  g.line(`func (r *${rpcStructName}[T]) SetStreamConfig(cfg StreamConfig) {`);
-  g.block(() => {
-    g.line(
-      `r.intServer.setRPCStreamConfig(${renderGoString(service.name)}, cfg)`,
-    );
   });
   g.line("}");
   g.break();
@@ -169,26 +154,10 @@ function renderServerService(
   g.line("}");
   g.break();
 
-  writeComment(
-    g,
-    `${streamsStructName} exposes the generated stream registration APIs for the ${service.name} RPC service.`,
-  );
-  g.line(`type ${streamsStructName}[T any] struct {`);
-  g.block(() => {
-    g.line("intServer *internalServer[T]");
-  });
-  g.line("}");
-
   for (const operation of service.procedures) {
     g.break();
     g.break();
     g.raw(renderServerProcedure(service, operation, context));
-  }
-
-  for (const operation of service.streams) {
-    g.break();
-    g.break();
-    g.raw(renderServerStream(service, operation, context));
   }
 
   return g.toString();
@@ -334,13 +303,27 @@ function renderServerProcedure(
         g.line("operation: cGeneric.operation,");
       });
       g.line("}");
-      g.line("return handler(cSpecific)");
+      if (operation.outputTypeName) {
+        g.line("return handler(cSpecific)");
+      } else {
+        g.line("if _, err := handler(cSpecific); err != nil {");
+        g.block(() => {
+          g.line("return nil, err");
+        });
+        g.line("}");
+        g.line("return nil, nil");
+      }
     });
     g.line("}");
 
     g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
     g.block(() => {
       if (operation.inputTypeName) {
+        g.line("if len(bytes.TrimSpace(raw)) == 0 {");
+        g.block(() => {
+          g.line('raw = json.RawMessage("{}")');
+        });
+        g.line("}");
         g.line(`var input ${inputType}`);
         g.line("if err := json.Unmarshal(raw, &input); err != nil {");
         g.block(() => {
@@ -357,271 +340,6 @@ function renderServerProcedure(
     g.line("}");
     g.line(
       `e.intServer.setProcHandler(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adaptedHandler, deserializer)`,
-    );
-  });
-  g.line("}");
-  return g.toString();
-}
-
-/**
- * Renders the typed server adapter for a single stream.
- */
-function renderServerStream(
-  service: ServiceDescriptor,
-  operation: OperationDescriptor,
-  context: GeneratorContext,
-): string {
-  const registryName = `server${service.goName}Streams`;
-  const entryName = `stream${operation.operationTypeName}Entry`;
-  const handlerContextName = `${operation.operationTypeName}HandlerContext`;
-  const emitFuncName = `${operation.operationTypeName}EmitFunc`;
-  const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
-  const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
-  const emitMiddlewareFuncName = `${operation.operationTypeName}EmitMiddlewareFunc`;
-  const inputType = getServerInputType(operation, context);
-  const outputType = getServerOutputType(operation, context);
-
-  const g = newGenerator().withTabs();
-  writeComment(
-    g,
-    `${operation.goName} returns the registration entry for the ${service.name}.${operation.name} stream.`,
-    operation.doc,
-    operation.deprecated,
-  );
-  g.line(
-    `func (r *${registryName}[T]) ${operation.goName}() ${entryName}[T] {`,
-  );
-  g.block(() => {
-    g.line(`return ${entryName}[T]{intServer: r.intServer}`);
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `${entryName} contains the generated registration API for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(`type ${entryName}[T any] struct {`);
-  g.block(() => {
-    g.line("intServer *internalServer[T]");
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `${handlerContextName} is the typed handler context passed to ${service.name}.${operation.name} stream handlers.`,
-  );
-  g.line(`type ${handlerContextName}[T any] = HandlerContext[T, ${inputType}]`);
-  g.break();
-
-  writeComment(
-    g,
-    `${emitFuncName} is the typed emit signature for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(
-    `type ${emitFuncName}[T any] func(c *${handlerContextName}[T], output ${outputType}) error`,
-  );
-  g.break();
-
-  writeComment(
-    g,
-    `${handlerFuncName} is the typed handler signature for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(
-    `type ${handlerFuncName}[T any] func(c *${handlerContextName}[T], emit ${emitFuncName}[T]) error`,
-  );
-  g.break();
-
-  writeComment(
-    g,
-    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(
-    `type ${middlewareFuncName}[T any] func(next ${handlerFuncName}[T]) ${handlerFuncName}[T]`,
-  );
-  g.break();
-
-  writeComment(
-    g,
-    `${emitMiddlewareFuncName} is the typed emit middleware signature for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(
-    `type ${emitMiddlewareFuncName}[T any] func(next ${emitFuncName}[T]) ${emitFuncName}[T]`,
-  );
-  g.break();
-
-  writeComment(
-    g,
-    `SetConfig overrides stream transport configuration for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(`func (e ${entryName}[T]) SetConfig(cfg StreamConfig) {`);
-  g.block(() => {
-    g.line(
-      `e.intServer.setStreamConfig(${renderGoString(service.name)}, ${renderGoString(operation.name)}, cfg)`,
-    );
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `Use registers typed middleware for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(`func (e ${entryName}[T]) Use(mw ${middlewareFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adapted := func(next StreamHandlerFunc[T, any, any]) StreamHandlerFunc[T, any, any] {`,
-    );
-    g.block(() => {
-      g.line(
-        `return func(cGeneric *HandlerContext[T, any], emitGeneric EmitFunc[T, any, any]) error {`,
-      );
-      g.block(() => {
-        g.line(
-          `typedNext := func(c *${handlerContextName}[T], emit ${emitFuncName}[T]) error {`,
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return next(cGeneric, emitGeneric)");
-        });
-        g.line("}");
-        g.line("typedChain := mw(typedNext)");
-        g.line(
-          `emitSpecific := func(c *${handlerContextName}[T], output ${outputType}) error {`,
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return emitGeneric(cGeneric, output)");
-        });
-        g.line("}");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-        g.line(`cSpecific := &${handlerContextName}[T]{`);
-        g.block(() => {
-          g.line("Props: cGeneric.Props,");
-          g.line("Input: typedInput,");
-          g.line("Context: cGeneric.Context,");
-          g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("operation: cGeneric.operation,");
-        });
-        g.line("}");
-        g.line("return typedChain(cSpecific, emitSpecific)");
-      });
-      g.line("}");
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.addStreamMiddleware(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adapted)`,
-    );
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `UseEmit registers typed emit middleware for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(`func (e ${entryName}[T]) UseEmit(mw ${emitMiddlewareFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adapted := func(next EmitFunc[T, any, any]) EmitFunc[T, any, any] {`,
-    );
-    g.block(() => {
-      g.line(
-        `return func(cGeneric *HandlerContext[T, any], outputGeneric any) error {`,
-      );
-      g.block(() => {
-        g.line(
-          `typedNext := func(c *${handlerContextName}[T], output ${outputType}) error {`,
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return next(cGeneric, output)");
-        });
-        g.line("}");
-        g.line("emitChain := mw(typedNext)");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-        g.line(`typedOutput, _ := outputGeneric.(${outputType})`);
-        g.line(`cSpecific := &${handlerContextName}[T]{`);
-        g.block(() => {
-          g.line("Props: cGeneric.Props,");
-          g.line("Input: typedInput,");
-          g.line("Context: cGeneric.Context,");
-          g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("operation: cGeneric.operation,");
-        });
-        g.line("}");
-        g.line("return emitChain(cSpecific, typedOutput)");
-      });
-      g.line("}");
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.addStreamEmitMiddleware(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adapted)`,
-    );
-  });
-  g.line("}");
-  g.break();
-
-  writeComment(
-    g,
-    `Handle registers the typed business handler for the ${service.name}.${operation.name} stream.`,
-  );
-  g.line(`func (e ${entryName}[T]) Handle(handler ${handlerFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adaptedHandler := func(cGeneric *HandlerContext[T, any], emitGeneric EmitFunc[T, any, any]) error {`,
-    );
-    g.block(() => {
-      g.line(
-        `emitSpecific := func(c *${handlerContextName}[T], output ${outputType}) error {`,
-      );
-      g.block(() => {
-        g.line("cGeneric.Props = c.Props");
-        g.line("cGeneric.Input = c.Input");
-        g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-        g.line("return emitGeneric(cGeneric, output)");
-      });
-      g.line("}");
-      g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-      g.line(`cSpecific := &${handlerContextName}[T]{`);
-      g.block(() => {
-        g.line("Props: cGeneric.Props,");
-        g.line("Input: typedInput,");
-        g.line("Context: cGeneric.Context,");
-        g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-        g.line("operation: cGeneric.operation,");
-      });
-      g.line("}");
-      g.line("return handler(cSpecific, emitSpecific)");
-    });
-    g.line("}");
-
-    g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
-    g.block(() => {
-      if (operation.inputTypeName) {
-        g.line(`var input ${inputType}`);
-        g.line("if err := json.Unmarshal(raw, &input); err != nil {");
-        g.block(() => {
-          g.line(
-            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${operation.name} input: %w", err)`,
-          );
-        });
-        g.line("}");
-        g.line("return input, nil");
-      } else {
-        g.line("return Void{}, nil");
-      }
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.setStreamHandler(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adaptedHandler, deserializer)`,
     );
   });
   g.line("}");

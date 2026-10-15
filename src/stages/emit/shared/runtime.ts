@@ -9,17 +9,6 @@ export function renderCoreRuntime(): string {
     // RPC Core Types
     // -----------------------------------------------------------------------------
 
-    // OperationType identifies the transport behavior of an RPC operation and can
-    // be proc or stream.
-    type OperationType string
-
-    const (
-      // OperationTypeProc identifies a request-response procedure.
-      OperationTypeProc OperationType = "proc"
-      // OperationTypeStream identifies a Server-Sent Events stream.
-      OperationTypeStream OperationType = "stream"
-    )
-
     // Annotation represents operation-level annotation metadata preserved from VDL.
     type Annotation struct {
       // Name is the annotation identifier without the @ prefix.
@@ -28,21 +17,29 @@ export function renderCoreRuntime(): string {
       Argument any
     }
 
-    // OperationDefinition describes a generated procedure or stream.
+    // OperationDefinition describes a generated procedure.
     type OperationDefinition struct {
       // RPCName is the VDL service name that owns the operation.
       RPCName string
       // Name is the VDL field name of the operation.
       Name string
-      // Type indicates whether the operation is a procedure or a stream.
-      Type OperationType
       // Annotations contains every non-marker annotation declared on the operation.
       Annotations []Annotation
     }
 
     // Path returns the transport path used by the generated client and server.
     func (o OperationDefinition) Path() string {
-      return "/" + o.RPCName + "/" + o.Name
+      return "/" + lowerFirst(o.RPCName) + "/" + o.Name
+    }
+
+    // lowerFirst lowercases the first Unicode letter and leaves the rest untouched.
+    func lowerFirst(s string) string {
+      if s == "" {
+        return s
+      }
+      r := []rune(s)
+      r[0] = unicode.ToLower(r[0])
+      return string(r)
     }
 
     // cloneAnnotations returns a shallow copy of the given annotations slice.

@@ -59,12 +59,12 @@ function createBaseInput() {
                 ),
               ]),
               {
-                annotations: [annotation("stream")],
+                annotations: [annotation("proc")],
               },
             ),
           ]),
           {
-            annotations: [annotation("rpc")],
+            annotations: [annotation("httpRpc")],
           },
         ),
       ],
@@ -193,7 +193,7 @@ describe("generate", () => {
                 }),
               ]),
               {
-                annotations: [annotation("rpc")],
+                annotations: [annotation("httpRpc")],
               },
             ),
           ],
@@ -229,7 +229,7 @@ describe("generate", () => {
                 ),
               ]),
               {
-                annotations: [annotation("rpc")],
+                annotations: [annotation("httpRpc")],
               },
             ),
           ],
@@ -246,7 +246,7 @@ describe("generate", () => {
     expect(output.errors).toEqual([
       expect.objectContaining({
         message:
-          'Field "input" in operation "Broken.oops" must be an object type when present.',
+          'Field "input" in operation "Broken.oops" must be an inline object type when present.',
       }),
     ]);
   });

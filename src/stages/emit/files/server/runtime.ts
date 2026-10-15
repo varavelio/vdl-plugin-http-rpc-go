@@ -20,16 +20,14 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     RequestBody() io.Reader
     // SetHeader sets a response header with the specified key-value pair.
     // This is used to configure response headers like Content-Type and
-    // caching directives for both procedure and stream responses.
+    // caching directives for procedure responses.
     SetHeader(key, value string)
     // Write writes the provided data to the response body.
     // Returns the number of bytes written and any error encountered.
-    // For procedures, this writes the complete JSON response. For streams,
-    // this writes individual Server-Sent Events data chunks.
+    // For procedures, this writes the complete JSON response.
     Write(data []byte) (int, error)
     // Flush immediately sends any buffered response data to the client.
-    // This is crucial for streaming responses to ensure real-time delivery
-    // of events. Returns an error if the flush operation fails.
+    // Returns an error if the flush operation fails.
     Flush() error
   }
 
@@ -64,7 +62,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 
   // SetHeader sets a response header with the specified key-value pair.
   // This configures headers for the HTTP response, such as Content-Type
-  // for JSON responses or streaming-specific headers.
+  // for JSON responses.
   func (r *NetHTTPAdapter) SetHeader(key, value string) {
     r.responseWriter.Header().Set(key, value)
   }
@@ -76,7 +74,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   }
 
   // Flush immediately sends any buffered response data to the client.
-  // For streaming responses, this ensures real-time delivery of events.
+  // Flush is a no-op when the writer does not support flushing.
   // If the underlying ResponseWriter doesn't support flushing, this is a no-op.
   func (r *NetHTTPAdapter) Flush() error {
     if f, ok := r.responseWriter.(http.Flusher); ok {
@@ -121,10 +119,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // OperationName returns the name of the operation (e.g. "CreateUser", "GetPost", etc.)
   func (h *HandlerContext[T, I]) OperationName() string { return h.operation.Name }
 
-  // OperationType returns the type of operation, can be [OperationTypeProc] ("proc") or [OperationTypeStream] ("stream")
-  func (h *HandlerContext[T, I]) OperationType() OperationType { return h.operation.Type }
-
-  // GlobalHandlerFunc is the signature for a global handler function for procedures and streams.
+  // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //
   //   - T: Application-defined context type (props).
   type GlobalHandlerFunc[T any] func(c *HandlerContext[T, any]) (any, error)
@@ -151,34 +146,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //   - O: Output payload type for the procedure.
   type ProcMiddlewareFunc[T any, I any, O any] func(next ProcHandlerFunc[T, I, O]) ProcHandlerFunc[T, I, O]
 
-  // StreamHandlerFunc is the signature of the main handler that initializes a stream.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream (subscription parameters).
-  //   - O: Output payload type for the stream (event data).
-  type StreamHandlerFunc[T any, I any, O any] func(c *HandlerContext[T, I], emit EmitFunc[T, I, O]) error
-
-  // StreamMiddlewareFunc is the signature for a middleware that wraps the main stream handler.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type StreamMiddlewareFunc[T any, I any, O any] func(next StreamHandlerFunc[T, I, O]) StreamHandlerFunc[T, I, O]
-
-  // EmitFunc is the signature for emitting events from a stream.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type EmitFunc[T any, I any, O any] func(c *HandlerContext[T, I], output O) error
-
-  // EmitMiddlewareFunc is the signature for a middleware that wraps each call to emit.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type EmitMiddlewareFunc[T any, I any, O any] func(next EmitFunc[T, I, O]) EmitFunc[T, I, O]
-
   // DeserializerFunc function convert raw JSON input into typed input prior to handler execution.
   type DeserializerFunc func(raw json.RawMessage) (any, error)
 
@@ -190,19 +157,10 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //   - T: Application-defined context type (props).
   type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
 
-  // StreamConfig allows configuring the behavior of streams.
-  type StreamConfig struct {
-    // PingInterval is the interval at which ping events are sent to the client
-    // to keep the connection alive. Defaults to 30 seconds.
-    PingInterval time.Duration
-  }
-
-  // -----------------------------------------------------------------------------
   // Internal Server Implementation
   // -----------------------------------------------------------------------------
 
-  // internalServer manages RPC request handling and middleware execution for
-  // both procedures and streams. It maintains handler registrations, middleware
+  // internalServer manages RPC request handling and middleware execution for procedures. It maintains handler registrations, middleware
   // chains, and coordinates the complete request lifecycle.
   //
   // The generic type P represents the user context type, allowing users to pass
@@ -222,11 +180,8 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     // Map format: rpcName -> procName -> handler
     procHandlers map[string]map[string]ProcHandlerFunc[T, any, any]
 
-    // streamHandlers stores the final implementation functions for streams
-    // Map format: rpcName -> streamName -> handler
-    streamHandlers map[string]map[string]StreamHandlerFunc[T, any, any]
 
-    // globalMiddlewares contains middlewares that run for every request (both procs and streams)
+    // globalMiddlewares contains middlewares that run for every procedure request
     globalMiddlewares []GlobalMiddlewareFunc[T]
 
     // rpcMiddlewares contains middlewares that run for every request within a specific RPC
@@ -237,32 +192,15 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     // Map format: rpcName -> procName -> middlewares
     procMiddlewares map[string]map[string][]ProcMiddlewareFunc[T, any, any]
 
-    // streamMiddlewares contains per-stream middlewares
-    // Map format: rpcName -> streamName -> middlewares
-    streamMiddlewares map[string]map[string][]StreamMiddlewareFunc[T, any, any]
 
-    // streamEmitMiddlewares contains per-stream emit middlewares
-    // Map format: rpcName -> streamName -> middlewares
-    streamEmitMiddlewares map[string]map[string][]EmitMiddlewareFunc[T, any, any]
 
     // procDeserializers contains per-procedure input deserializers
     // Map format: rpcName -> procName -> deserializer
     procDeserializers map[string]map[string]DeserializerFunc
 
-    // streamDeserializers contains per-stream input deserializers
-    // Map format: rpcName -> streamName -> deserializer
-    streamDeserializers map[string]map[string]DeserializerFunc
 
-    // globalStreamConfig contains the global configuration for streams
-    globalStreamConfig StreamConfig
 
-    // rpcStreamConfigs contains per-RPC configuration for streams
-    // Map format: rpcName -> config
-    rpcStreamConfigs map[string]StreamConfig
 
-    // streamConfigs contains per-stream configuration
-    // Map format: rpcName -> streamName -> config
-    streamConfigs map[string]map[string]StreamConfig
 
     // globalErrorHandler is the global error handler
     globalErrorHandler ErrorHandlerFunc[T]
@@ -273,7 +211,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   }
 
   // newInternalServer creates a new VDL server instance with the specified
-  // procedure and stream definitions. The server is initialized with empty handler
+  // procedure definitions. The server is initialized with empty handler
   // maps and middleware slices, ready for registration.
   //
   // The generic type T represents the user context type, used to pass additional
@@ -282,23 +220,16 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //
   // Parameters:
   //   - procDefs: List of procedure definitions that this server will handle
-  //   - streamDefs: List of stream definitions that this server will handle
   //   - T: Application-defined context type (props).
   //
   // Returns a new internalServer instance ready for handler and middleware registration.
-  func newInternalServer[T any](procDefs []OperationDefinition, streamDefs []OperationDefinition) *internalServer[T] {
+  func newInternalServer[T any](procDefs []OperationDefinition) *internalServer[T] {
     // Initialize maps
     operationDefs := make(map[string]map[string]OperationDefinition)
     procHandlers := make(map[string]map[string]ProcHandlerFunc[T, any, any])
-    streamHandlers := make(map[string]map[string]StreamHandlerFunc[T, any, any])
     rpcMiddlewares := make(map[string][]GlobalMiddlewareFunc[T])
     procMiddlewares := make(map[string]map[string][]ProcMiddlewareFunc[T, any, any])
-    streamMiddlewares := make(map[string]map[string][]StreamMiddlewareFunc[T, any, any])
-    streamEmitMiddlewares := make(map[string]map[string][]EmitMiddlewareFunc[T, any, any])
     procDeserializers := make(map[string]map[string]DeserializerFunc)
-    streamDeserializers := make(map[string]map[string]DeserializerFunc)
-    rpcStreamConfigs := make(map[string]StreamConfig)
-    streamConfigs := make(map[string]map[string]StreamConfig)
     rpcErrorHandlers := make(map[string]ErrorHandlerFunc[T])
 
     // Helper to ensure RPC map existence
@@ -306,21 +237,12 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       if _, ok := operationDefs[rpcName]; !ok {
         operationDefs[rpcName] = make(map[string]OperationDefinition)
         procHandlers[rpcName] = make(map[string]ProcHandlerFunc[T, any, any])
-        streamHandlers[rpcName] = make(map[string]StreamHandlerFunc[T, any, any])
         procMiddlewares[rpcName] = make(map[string][]ProcMiddlewareFunc[T, any, any])
-        streamMiddlewares[rpcName] = make(map[string][]StreamMiddlewareFunc[T, any, any])
-        streamEmitMiddlewares[rpcName] = make(map[string][]EmitMiddlewareFunc[T, any, any])
         procDeserializers[rpcName] = make(map[string]DeserializerFunc)
-        streamDeserializers[rpcName] = make(map[string]DeserializerFunc)
-        streamConfigs[rpcName] = make(map[string]StreamConfig)
       }
     }
 
     for _, def := range procDefs {
-      ensureRPC(def.RPCName)
-      operationDefs[def.RPCName][def.Name] = def
-    }
-    for _, def := range streamDefs {
       ensureRPC(def.RPCName)
       operationDefs[def.RPCName][def.Name] = def
     }
@@ -329,23 +251,16 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       handlersMu:            sync.RWMutex{},
       operationDefs:         operationDefs,
       procHandlers:          procHandlers,
-      streamHandlers:        streamHandlers,
       globalMiddlewares:     []GlobalMiddlewareFunc[T]{},
       rpcMiddlewares:        rpcMiddlewares,
       procMiddlewares:       procMiddlewares,
-      streamMiddlewares:     streamMiddlewares,
-      streamEmitMiddlewares: streamEmitMiddlewares,
       procDeserializers:     procDeserializers,
-      streamDeserializers:   streamDeserializers,
-      globalStreamConfig:    StreamConfig{PingInterval: 30 * time.Second},
-      rpcStreamConfigs:      rpcStreamConfigs,
-      streamConfigs:         streamConfigs,
       globalErrorHandler:    nil,
       rpcErrorHandlers:      rpcErrorHandlers,
     }
   }
 
-  // addGlobalMiddleware registers a global middleware that executes for every request (proc and stream).
+  // addGlobalMiddleware registers a global middleware that executes for every procedure request.
   // Middlewares are executed in the order they were registered.
   func (s *internalServer[T]) addGlobalMiddleware(
     mw GlobalMiddlewareFunc[T],
@@ -378,59 +293,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     s.handlersMu.Lock()
     defer s.handlersMu.Unlock()
     s.procMiddlewares[rpcName][procName] = append(s.procMiddlewares[rpcName][procName], mw)
-    return s
-  }
-
-  // addStreamMiddleware registers a wrapper middleware for a specific stream.
-  // Middlewares are executed in the order they were registered.
-  func (s *internalServer[T]) addStreamMiddleware(
-    rpcName string,
-    streamName string,
-    mw StreamMiddlewareFunc[T, any, any],
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamMiddlewares[rpcName][streamName] = append(s.streamMiddlewares[rpcName][streamName], mw)
-    return s
-  }
-
-  // addStreamEmitMiddleware registers an emit wrapper middleware for a specific stream.
-  // Middlewares are executed in the order they were registered.
-  func (s *internalServer[T]) addStreamEmitMiddleware(
-    rpcName string,
-    streamName string,
-    mw EmitMiddlewareFunc[T, any, any],
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamEmitMiddlewares[rpcName][streamName] = append(s.streamEmitMiddlewares[rpcName][streamName], mw)
-    return s
-  }
-
-  // setGlobalStreamConfig sets the global configuration for streams.
-  func (s *internalServer[T]) setGlobalStreamConfig(cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    if cfg.PingInterval <= 0 {
-      cfg.PingInterval = 30 * time.Second
-    }
-    s.globalStreamConfig = cfg
-    return s
-  }
-
-  // setRPCStreamConfig sets the configuration for streams within a specific RPC.
-  func (s *internalServer[T]) setRPCStreamConfig(rpcName string, cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.rpcStreamConfigs[rpcName] = cfg
-    return s
-  }
-
-  // setStreamConfig sets the configuration for a specific stream.
-  func (s *internalServer[T]) setStreamConfig(rpcName, streamName string, cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamConfigs[rpcName][streamName] = cfg
     return s
   }
 
@@ -489,37 +351,17 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     return s
   }
 
-  // setStreamHandler registers the final implementation function and deserializer for the specified stream name.
-  // The provided functions are stored as-is. Middlewares are composed at request time.
-  //
-  // Panics if a handler is already registered for the given stream name.
-  func (s *internalServer[T]) setStreamHandler(
-    rpcName string,
-    streamName string,
-    handler StreamHandlerFunc[T, any, any],
-    deserializer DeserializerFunc,
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    if _, exists := s.streamHandlers[rpcName][streamName]; exists {
-      panic(fmt.Sprintf("the stream handler for %s.%s is already registered", rpcName, streamName))
-    }
-    s.streamHandlers[rpcName][streamName] = handler
-    s.streamDeserializers[rpcName][streamName] = deserializer
-    return s
-  }
-
-  // handleRequest processes an incoming RPC request by parsing the request body,
-  // building the global middleware chain, and dispatching to the appropriate
-  // adapter (procedure or stream).
+  // handleRequest processes an incoming procedure request by parsing the request body,
+  // building the global middleware chain, and dispatching to the procedure handler.
   //
   // The request body must contain a JSON object with the input data for the handler.
+  // An empty body is accepted as empty input per VPP-2.
   //
   // Parameters:
   //   - ctx: The request context
   //   - props: The VDL context containing user-defined data
-  //   - rpcName: The name of the RPC service to invoke
-  //   - operationName: The name of the procedure or stream to invoke
+  //   - rpcName: The RPC service name from the request URL (lowerFirst form)
+  //   - operationName: The name of the procedure to invoke
   //   - httpAdapter: The HTTP adapter for reading requests and writing responses
   //
   // Returns an error if request processing fails at the transport level.
@@ -534,17 +376,27 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       return fmt.Errorf("the HTTP adapter is nil, please provide a valid adapter")
     }
 
-    // Decode the request body into a json.RawMessage as the initial input container
+    // Decode the request body into a json.RawMessage. An empty body is valid
+    // empty input per VPP-2 and must not fail the transport.
     var rawInput json.RawMessage
     if err := json.NewDecoder(httpAdapter.RequestBody()).Decode(&rawInput); err != nil {
-      res := Response[any]{
-        Ok:    false,
-        Error: Error{Message: "Invalid request body"},
+      if err != io.EOF {
+        // Tolerate empty bodies reported as EOF or unexpected EOF with no bytes.
+        if len(bytes.TrimSpace(rawInput)) != 0 {
+          res := Response[any]{
+            Ok:    false,
+            Error: Error{Message: "Invalid request body"},
+          }
+          return s.writeProcResponse(httpAdapter, res)
+        }
       }
-      return s.writeProcResponse(httpAdapter, res)
+      rawInput = nil
+    }
+    if len(bytes.TrimSpace(rawInput)) == 0 {
+      rawInput = nil
     }
 
-    operation, operationExists := s.operationDefs[rpcName][operationName]
+    operation, canonicalRPC, canonicalOp, operationExists := s.lookupOperation(rpcName, operationName)
     if !operationExists {
       res := Response[any]{
         Ok:    false,
@@ -562,46 +414,16 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       operation: OperationDefinition{
         RPCName:     operation.RPCName,
         Name:        operation.Name,
-        Type:        operation.Type,
         Annotations: cloneAnnotations(operation.Annotations),
       },
     }
 
-    // Handle Stream
-    if operation.Type == OperationTypeStream {
-      err := s.handleStreamRequest(c, rpcName, operationName, rawInput, httpAdapter)
-
-      // If no error, return without sending any response
-      if err == nil {
-        return nil
-      }
-
-      // Send an event with the error before closing the connection
-      errorHandler := s.resolveErrorHandler(rpcName)
-      response := Response[any]{
-        Ok:    false,
-        Error: errorHandler(c, err),
-      }
-
-      jsonData, marshalErr := json.Marshal(response)
-      if marshalErr != nil {
-        return fmt.Errorf("failed to marshal stream error: %w", marshalErr)
-      }
-      resPayload := fmt.Sprintf("data: %s\\n\\n", jsonData)
-      if _, writeErr := httpAdapter.Write([]byte(resPayload)); writeErr != nil {
-        return writeErr
-      }
-      if flushErr := httpAdapter.Flush(); flushErr != nil {
-        return flushErr
-      }
-    }
-
     // Handle Procedure
-    output, err := s.handleProcRequest(c, rpcName, operationName, rawInput)
+    output, err := s.handleProcRequest(c, canonicalRPC, canonicalOp, rawInput)
     response := Response[any]{}
     if err != nil {
       response.Ok = false
-      errorHandler := s.resolveErrorHandler(rpcName)
+      errorHandler := s.resolveErrorHandler(canonicalRPC)
       response.Error = errorHandler(c, err)
     } else {
       response.Ok = true
@@ -609,6 +431,24 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     }
 
     return s.writeProcResponse(httpAdapter, response)
+  }
+
+  // lookupOperation resolves an incoming route to its canonical procedure definition.
+  //
+  // The RPC segment matches the VPP-2 lowerFirst transport form. The canonical
+  // VDL service name is returned for handler and middleware lookup.
+  func (s *internalServer[T]) lookupOperation(rpcName string, operationName string) (OperationDefinition, string, string, bool) {
+    s.handlersMu.RLock()
+    defer s.handlersMu.RUnlock()
+    for canonicalRPC, operations := range s.operationDefs {
+      if canonicalRPC != rpcName && lowerFirst(canonicalRPC) != rpcName {
+        continue
+      }
+      if operation, ok := operations[operationName]; ok {
+        return operation, canonicalRPC, operationName, true
+      }
+    }
+    return OperationDefinition{}, "", "", false
   }
 
   // handleProcRequest builds the per-request middleware chain for a procedure and executes it.
@@ -670,150 +510,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     return exec(c)
   }
 
-  // handleStreamRequest builds the per-request middleware chain for a stream, sets up SSE,
-  // composes emit middlewares, and executes the stream handler.
-  func (s *internalServer[T]) handleStreamRequest(
-    c *HandlerContext[T, any],
-    rpcName string,
-    streamName string,
-    rawInput json.RawMessage,
-    httpAdapter HTTPAdapter,
-  ) error {
-    // Snapshot handler, middlewares, emit middlewares and deserializer under read lock
-    s.handlersMu.RLock()
-    baseHandler, ok := s.streamHandlers[rpcName][streamName]
-    streamMws := s.streamMiddlewares[rpcName][streamName]
-    emitMws := s.streamEmitMiddlewares[rpcName][streamName]
-    rpcMws := s.rpcMiddlewares[rpcName]
-    deserialize := s.streamDeserializers[rpcName][streamName]
-
-    // Determine configuration (Precedence: Stream > RPC > Global)
-    pingInterval := s.globalStreamConfig.PingInterval
-    if cfg, ok := s.rpcStreamConfigs[rpcName]; ok && cfg.PingInterval > 0 {
-      pingInterval = cfg.PingInterval
-    }
-    if cfg, ok := s.streamConfigs[rpcName][streamName]; ok && cfg.PingInterval > 0 {
-      pingInterval = cfg.PingInterval
-    }
-
-    s.handlersMu.RUnlock()
-
-    // Set SSE headers to the response
-    httpAdapter.SetHeader("Content-Type", "text/event-stream")
-    httpAdapter.SetHeader("Cache-Control", "no-cache")
-    httpAdapter.SetHeader("Connection", "keep-alive")
-
-    if !ok {
-      return fmt.Errorf("%s.%s stream not implemented", rpcName, streamName)
-    }
-    if deserialize == nil {
-      return fmt.Errorf("%s.%s stream deserializer not registered", rpcName, streamName)
-    }
-
-    // Deserialize, validate and transform input into its typed form
-    typedInput, err := deserialize(rawInput)
-    if err != nil {
-      return err
-    }
-    c.Input = typedInput
-
-    // We need to synchronize writes to the httpAdapter because pings run in a separate goroutine.
-    // The closed flag prevents writes after the handler returns (when the response writer is invalid).
-    var writeMu sync.Mutex
-    var closed bool
-    safeWrite := func(parts ...[]byte) error {
-      writeMu.Lock()
-      defer writeMu.Unlock()
-      if closed {
-        return nil
-      }
-      for _, part := range parts {
-        if _, err := httpAdapter.Write(part); err != nil {
-          return err
-        }
-      }
-      return httpAdapter.Flush()
-    }
-
-    // Start Ping Loop, use a done channel to wait for goroutine exit before returning
-    ctx, cancel := context.WithCancel(c.Context)
-    pingDone := make(chan struct{})
-
-    go func() {
-      defer close(pingDone)
-      ticker := time.NewTicker(pingInterval)
-      defer ticker.Stop()
-      for {
-        select {
-        case <-ctx.Done():
-          return
-        case <-ticker.C:
-          _ = safeWrite([]byte(": ping\\n\\n"))
-        }
-      }
-    }()
-
-    // Ensure ping goroutine exits and mark response as closed before handler returns
-    defer func() {
-      cancel()
-      <-pingDone
-      writeMu.Lock()
-      closed = true
-      writeMu.Unlock()
-    }()
-
-    // Base emit writes SSE envelope with {ok:true, output}
-    baseEmit := func(_ *HandlerContext[T, any], data any) error {
-      response := Response[any]{
-        Ok:     true,
-        Output: data,
-      }
-      jsonData, err := json.Marshal(response)
-      if err != nil {
-        return fmt.Errorf("failed to marshal stream data: %w", err)
-      }
-      return safeWrite([]byte("data: "), jsonData, []byte("\\n\\n"))
-    }
-
-    // Compose emit middlewares (reverse registration order)
-    emitFinal := baseEmit
-    if len(emitMws) > 0 {
-      mwChain := append([]EmitMiddlewareFunc[T, any, any](nil), emitMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        emitFinal = mwChain[i](emitFinal)
-      }
-    }
-
-    // Compose stream middlewares around the base handler (reverse order)
-    final := baseHandler
-    if len(streamMws) > 0 {
-      mwChain := append([]StreamMiddlewareFunc[T, any, any](nil), streamMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        final = mwChain[i](final)
-      }
-    }
-
-    // Wrap the specific stream chain with RPC-level middlewares (executed before specific ones)
-    exec := func(c *HandlerContext[T, any]) (any, error) { return nil, final(c, emitFinal) }
-    if len(rpcMws) > 0 {
-      mwChain := append([]GlobalMiddlewareFunc[T](nil), rpcMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        exec = mwChain[i](exec)
-      }
-    }
-
-    // Wrap with global middlewares (executed before RPC-level ones)
-    if len(s.globalMiddlewares) > 0 {
-      mwChain := append([]GlobalMiddlewareFunc[T](nil), s.globalMiddlewares...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        exec = mwChain[i](exec)
-      }
-    }
-
-    _, err = exec(c)
-    return err
-  }
-
   // writeProcResponse writes a procedure response to the client as JSON.
   // This helper method sets the appropriate Content-Type header and marshals
   // the response data before sending it to the client.
@@ -843,8 +539,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //
 	// It exposes:
 	//   - Procs: typed entries to register middlewares and the business handler per procedure
-	//   - Streams: typed entries to register middlewares, emit middlewares and the handler per stream
-	//   - Use: a global middleware API that runs for every operation (procedures and streams)
+	//   - Use: a global middleware API that runs for every procedure
 	//
 	// The generic type parameter T is your application context (props) that flows through
 	// the entire request lifecycle (authentication, per-request data, dependencies, etc.).
@@ -854,7 +549,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   }
 
 	// NewServer creates a new VDL RPC server instance ready to handle all
-	// defined procedures and streams using the middleware-based architecture.
+	// defined procedures using the middleware-based architecture.
 	//
 	// The generic type parameter T is your application context (props) that flows through
 	// the entire request lifecycle (authentication, per-request data, dependencies, etc.).
@@ -866,14 +561,14 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	//   }
 	//   s := NewServer[AppProps]()
   func NewServer[T any]() *Server[T] {
-    intServer := newInternalServer[T](VDLProcedures, VDLStreams)
+    intServer := newInternalServer[T](VDLProcedures)
     return &Server[T]{
       intServer: intServer,
       RPCs: newServerRPCRegistry(intServer),
     }
   }
 
-	// Use registers a global middleware that executes for every request (procedures and streams).
+	// Use registers a global middleware that executes for every procedure request.
 	//
 	// Middlewares are executed in registration order and can:
 	//   - read/augment the HandlerContext
@@ -881,13 +576,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	//   - call next to continue the chain
   func (s *Server[T]) Use(mw GlobalMiddlewareFunc[T]) {
     s.intServer.addGlobalMiddleware(mw)
-  }
-
-  // SetStreamConfig sets the global configuration for all streams.
-	//
-	// This applies to all streams unless overridden by RPC-level or stream-specific configurations (if set).
-  func (s *Server[T]) SetStreamConfig(cfg StreamConfig) {
-    s.intServer.setGlobalStreamConfig(cfg)
   }
 
   // SetErrorHandler sets a global error handler that intercepts and transforms errors
@@ -917,7 +605,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     return s.intServer.handleRequest(ctx, props, rpcName, operationName, httpAdapter)
   }
 
-  // serverRPCRegistry provides typed access to register handlers and middlewares for procedures and streams within a specific RPC service.
+  // serverRPCRegistry provides typed access to register handlers and middlewares for procedures within a specific RPC service.
   type serverRPCRegistry[T any] struct {
     intServer *internalServer[T]
   }

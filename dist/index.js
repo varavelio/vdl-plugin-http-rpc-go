@@ -67,7 +67,7 @@ function toPluginError(error) {
 }
 __name(toPluginError, "toPluginError");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.115.0/helpers/typeof.js
+// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.154.0/helpers/esm/typeof.js
 function _typeof(o) {
   "@babel/helpers - typeof";
   return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o2) {
@@ -78,7 +78,7 @@ function _typeof(o) {
 }
 __name(_typeof, "_typeof");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.115.0/helpers/toPrimitive.js
+// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.154.0/helpers/esm/toPrimitive.js
 function toPrimitive(t, r) {
   if ("object" != _typeof(t) || !t) return t;
   var e = t[Symbol.toPrimitive];
@@ -91,14 +91,14 @@ function toPrimitive(t, r) {
 }
 __name(toPrimitive, "toPrimitive");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.115.0/helpers/toPropertyKey.js
+// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.154.0/helpers/esm/toPropertyKey.js
 function toPropertyKey(t) {
   var i = toPrimitive(t, "string");
   return "symbol" == _typeof(i) ? i : i + "";
 }
 __name(toPropertyKey, "toPropertyKey");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.115.0/helpers/defineProperty.js
+// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.154.0/helpers/esm/defineProperty.js
 function _defineProperty(e, r, t) {
   return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
     value: t,
@@ -109,7 +109,7 @@ function _defineProperty(e, r, t) {
 }
 __name(_defineProperty, "_defineProperty");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.115.0/helpers/objectSpread2.js
+// node_modules/@varavel/vdl-plugin-sdk/dist/_virtual/_@oxc-project_runtime@0.154.0/helpers/esm/objectSpread2.js
 function ownKeys(e, r) {
   var t = Object.keys(e);
   if (Object.getOwnPropertySymbols) {
@@ -134,41 +134,44 @@ function _objectSpread2(e) {
 }
 __name(_objectSpread2, "_objectSpread2");
 
-// node_modules/@varavel/vdl-plugin-sdk/dist/utils/rpc/assert-valid-ir-for-rpc.js
-var RPC_ANNOTATION_NAME = "rpc";
+// node_modules/@varavel/vdl-plugin-sdk/dist/utils/rpc/assert-valid-ir-for-http-rpc.js
+var HTTP_RPC_ANNOTATION_NAME = "httpRpc";
 var PROC_ANNOTATION_NAME = "proc";
-var STREAM_ANNOTATION_NAME = "stream";
-function assertValidIrForRpc(ir) {
+function assertValidIrForHttpRpc(ir) {
   const rpcTypes = ir.types.filter((typeDef) => {
-    return hasAnnotation(typeDef.annotations, RPC_ANNOTATION_NAME);
+    return hasAnnotation(typeDef.annotations, HTTP_RPC_ANNOTATION_NAME);
   });
-  for (const rpcType of rpcTypes) assertValidRpcType(rpcType);
+  for (const rpcType of rpcTypes) assertValidHttpRpcType(rpcType);
 }
-__name(assertValidIrForRpc, "assertValidIrForRpc");
-function assertValidRpcType(typeDef) {
+__name(assertValidIrForHttpRpc, "assertValidIrForHttpRpc");
+function assertValidHttpRpcType(typeDef) {
   var _typeDef$typeRef$obje;
-  assert(typeDef.typeRef.kind === "object", `Type ${JSON.stringify(typeDef.name)} is annotated with @rpc and must be an object type.`, typeDef.position);
+  const rpcAnnotation = findAnnotation(typeDef.annotations, HTTP_RPC_ANNOTATION_NAME);
+  if ((rpcAnnotation === null || rpcAnnotation === void 0 ? void 0 : rpcAnnotation.argument) !== void 0) fail(`Type ${JSON.stringify(typeDef.name)} annotation @httpRpc must not have arguments.`, rpcAnnotation.position);
+  assert(typeDef.typeRef.kind === "object", `Type ${JSON.stringify(typeDef.name)} is annotated with @httpRpc and must be an object type.`, typeDef.position);
   const fields = (_typeDef$typeRef$obje = typeDef.typeRef.objectFields) !== null && _typeDef$typeRef$obje !== void 0 ? _typeDef$typeRef$obje : [];
-  for (const field of fields) assertValidRpcOperationField(typeDef, field);
+  for (const field of fields) assertValidHttpRpcOperationField(typeDef, field);
 }
-__name(assertValidRpcType, "assertValidRpcType");
-function assertValidRpcOperationField(rpcType, field) {
-  const hasProc = hasAnnotation(field.annotations, PROC_ANNOTATION_NAME);
-  const hasStream = hasAnnotation(field.annotations, STREAM_ANNOTATION_NAME);
-  if (!hasProc && !hasStream) return;
-  if (hasProc && hasStream) fail(`Field ${JSON.stringify(`${rpcType.name}.${field.name}`)} cannot be annotated with both @proc and @stream.`, field.position);
-  const operationAnnotation = hasProc ? PROC_ANNOTATION_NAME : STREAM_ANNOTATION_NAME;
-  assert(field.typeRef.kind === "object", `Field ${JSON.stringify(`${rpcType.name}.${field.name}`)} is annotated with @${operationAnnotation} and must be an object type.`, field.position);
+__name(assertValidHttpRpcType, "assertValidHttpRpcType");
+function assertValidHttpRpcOperationField(rpcType, field) {
+  const procAnnotation = findAnnotation(field.annotations, PROC_ANNOTATION_NAME);
+  if (!procAnnotation) return;
+  if (procAnnotation.argument !== void 0) fail(`Field ${JSON.stringify(`${rpcType.name}.${field.name}`)} annotation @proc must not have arguments.`, procAnnotation.position);
+  assert(field.typeRef.kind === "object", `Field ${JSON.stringify(`${rpcType.name}.${field.name}`)} is annotated with @proc and must be an inline object type.`, field.position);
   const inputField = findFieldByName(field.typeRef.objectFields, "input");
   const outputField = findFieldByName(field.typeRef.objectFields, "output");
-  if (inputField && inputField.typeRef.kind !== "object") fail(`Field "input" in operation ${JSON.stringify(`${rpcType.name}.${field.name}`)} must be an object type when present.`, withFallbackFile(inputField.position, field.position));
-  if (outputField && outputField.typeRef.kind !== "object") fail(`Field "output" in operation ${JSON.stringify(`${rpcType.name}.${field.name}`)} must be an object type when present.`, withFallbackFile(outputField.position, field.position));
+  if (inputField && inputField.typeRef.kind !== "object") fail(`Field "input" in operation ${JSON.stringify(`${rpcType.name}.${field.name}`)} must be an inline object type when present.`, withFallbackFile(inputField.position, field.position));
+  if (outputField && outputField.typeRef.kind !== "object") fail(`Field "output" in operation ${JSON.stringify(`${rpcType.name}.${field.name}`)} must be an inline object type when present.`, withFallbackFile(outputField.position, field.position));
 }
-__name(assertValidRpcOperationField, "assertValidRpcOperationField");
+__name(assertValidHttpRpcOperationField, "assertValidHttpRpcOperationField");
 function hasAnnotation(annotations, name) {
   return annotations.some((annotation) => annotation.name === name);
 }
 __name(hasAnnotation, "hasAnnotation");
+function findAnnotation(annotations, name) {
+  return annotations.find((annotation) => annotation.name === name);
+}
+__name(findAnnotation, "findAnnotation");
 function findFieldByName(fields, name) {
   return fields === null || fields === void 0 ? void 0 : fields.find((field) => field.name === name);
 }
@@ -477,6 +480,68 @@ function limitBlankLines(str, maxConsecutive = 0) {
 }
 __name(limitBlankLines, "limitBlankLines");
 
+// src/shared/naming.ts
+var GO_KEYWORDS = /* @__PURE__ */ new Set([
+  "break",
+  "case",
+  "chan",
+  "const",
+  "continue",
+  "default",
+  "defer",
+  "else",
+  "fallthrough",
+  "for",
+  "func",
+  "go",
+  "goto",
+  "if",
+  "import",
+  "interface",
+  "map",
+  "package",
+  "range",
+  "return",
+  "select",
+  "struct",
+  "switch",
+  "type",
+  "var"
+]);
+var GO_PACKAGE_RE = /^[a-z_][a-z0-9_]*$/;
+function isGoKeyword(value) {
+  return GO_KEYWORDS.has(value);
+}
+__name(isGoKeyword, "isGoKeyword");
+function isValidGoPackageName(value) {
+  return GO_PACKAGE_RE.test(value) && !isGoKeyword(value);
+}
+__name(isValidGoPackageName, "isValidGoPackageName");
+function toGoTypeName(value) {
+  return escapeGoIdentifier(pascalCase(value));
+}
+__name(toGoTypeName, "toGoTypeName");
+function toGoFieldName(value) {
+  return escapeGoIdentifier(pascalCase(value));
+}
+__name(toGoFieldName, "toGoFieldName");
+function lowerFirst(value) {
+  if (value.length === 0) {
+    return value;
+  }
+  const [first, ...rest] = Array.from(value);
+  return first.toLowerCase() + rest.join("");
+}
+__name(lowerFirst, "lowerFirst");
+function toInlineTypeName(parentTypeName, fieldName) {
+  return `${parentTypeName}${toGoFieldName(fieldName)}`;
+}
+__name(toInlineTypeName, "toInlineTypeName");
+function escapeGoIdentifier(value) {
+  return isGoKeyword(value) ? `${value}_` : value;
+}
+__name(escapeGoIdentifier, "escapeGoIdentifier");
+
 // src/stages/emit/shared/helpers.ts
 function createGoFile(path, header, body) {
   let content = "";
@@ -598,13 +663,12 @@ function renderCatalog(context) {
   return joinSections([
     CATALOG_HEADER,
     renderPathCatalog(context.services),
-    renderOperationCatalog("VDLProcedures", context.procedures),
-    renderOperationCatalog("VDLStreams", context.streams)
+    renderOperationCatalog("VDLProcedures", context.procedures)
   ]);
 }
 __name(renderCatalog, "renderCatalog");
 function renderOperationCatalog(constName, operations) {
-  const summary = constName === "VDLProcedures" ? "VDLProcedures contains every generated procedure definition." : "VDLStreams contains every generated stream definition.";
+  const summary = "VDLProcedures contains every generated procedure definition.";
   if (operations.length === 0) {
     const g2 = newGenerator();
     g2.line(renderCommentBlock({ summary }));
@@ -617,9 +681,6 @@ function renderOperationCatalog(constName, operations) {
     g2.block(() => {
       g2.line(`RPCName: ${renderGoString(operation.rpcName)},`);
       g2.line(`Name: ${renderGoString(operation.name)},`);
-      g2.line(
-        `Type: ${operation.kind === "proc" ? "OperationTypeProc" : "OperationTypeStream"},`
-      );
       g2.line(
         `Annotations: ${renderAnnotationsLiteral(operation.annotations)},`
       );
@@ -643,7 +704,7 @@ function renderPathCatalog(services) {
   const g = newGenerator();
   g.line(
     renderCommentBlock({
-      summary: "VDLPaths contains the generated path catalog for every procedure and stream."
+      summary: "VDLPaths contains the generated path catalog for every procedure."
     })
   );
   g.line("var VDLPaths = struct {");
@@ -671,7 +732,7 @@ function renderPathCatalog(services) {
       g.block(() => {
         for (const operation of service.operations) {
           g.line(
-            `${operation.goName}: ${renderGoString(`/${service.name}/${operation.name}`)},`
+            `${operation.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${operation.name}`)},`
           );
         }
       });
@@ -692,17 +753,6 @@ function renderCoreRuntime() {
     // RPC Core Types
     // -----------------------------------------------------------------------------
 
-    // OperationType identifies the transport behavior of an RPC operation and can
-    // be proc or stream.
-    type OperationType string
-
-    const (
-      // OperationTypeProc identifies a request-response procedure.
-      OperationTypeProc OperationType = "proc"
-      // OperationTypeStream identifies a Server-Sent Events stream.
-      OperationTypeStream OperationType = "stream"
-    )
-
     // Annotation represents operation-level annotation metadata preserved from VDL.
     type Annotation struct {
       // Name is the annotation identifier without the @ prefix.
@@ -711,21 +761,29 @@ function renderCoreRuntime() {
       Argument any
     }
 
-    // OperationDefinition describes a generated procedure or stream.
+    // OperationDefinition describes a generated procedure.
     type OperationDefinition struct {
       // RPCName is the VDL service name that owns the operation.
       RPCName string
       // Name is the VDL field name of the operation.
       Name string
-      // Type indicates whether the operation is a procedure or a stream.
-      Type OperationType
       // Annotations contains every non-marker annotation declared on the operation.
       Annotations []Annotation
     }
 
     // Path returns the transport path used by the generated client and server.
     func (o OperationDefinition) Path() string {
-      return "/" + o.RPCName + "/" + o.Name
+      return "/" + lowerFirst(o.RPCName) + "/" + o.Name
+    }
+
+    // lowerFirst lowercases the first Unicode letter and leaves the rest untouched.
+    func lowerFirst(s string) string {
+      if s == "" {
+        return s
+      }
+      r := []rune(s)
+      r[0] = unicode.ToLower(r[0])
+      return string(r)
     }
 
     // cloneAnnotations returns a shallow copy of the given annotations slice.
@@ -909,14 +967,13 @@ var CLIENT_RUNTIME = dedent2(
 
 	// RequestInfo contains information about the RPC request currently being executed.
 	//
-	// It is passed through interceptors and retry/reconnect deciders so callers can
-	// inspect the targeted RPC, operation, request payload, transport mode, and the
+	// It is passed through interceptors and retry deciders so callers can
+	// inspect the targeted RPC, operation, request payload, and the
 	// non-marker annotations declared on the VDL operation.
 	type RequestInfo struct {
 		RPCName string
 		OperationName string
 		Input any
-		Type OperationType
 		Annotations []Annotation
 	}
 
@@ -958,41 +1015,9 @@ var CLIENT_RUNTIME = dedent2(
 		Timeout time.Duration
 	}
 
-	// ReconnectDecisionContext contains the information passed to a reconnect decider.
-	//
-	// The generated client evaluates this context after a stream connection fails or
-	// breaks unexpectedly so callers can decide whether the stream should reconnect.
-	type ReconnectDecisionContext struct {
-		Request RequestInfo
-		Attempt int
-		ResponseStatus int
-		Error error
-	}
-
-	// ReconnectDecider determines whether a failed stream connection should reconnect.
-	type ReconnectDecider func(ctx context.Context, info ReconnectDecisionContext) bool
-
-	// ReconnectConfig defines reconnection behavior for generated stream calls.
-	//
-	// Parameters:
-	//   - MaxAttempts: Maximum number of reconnection attempts (default: 30)
-	//   - InitialDelay: Initial delay between reconnection attempts (default: 1 second)
-	//   - MaxDelay: Maximum delay between reconnection attempts (default: 30 seconds)
-	//   - DelayMultiplier: Cumulative multiplier applied to InitialDelay on each retry (default: 1.5)
-	//   - Jitter: Randomness factor used to avoid synchronized reconnects (default: 0.2)
-	//   - ShouldReconnect: Optional callback that can override the default reconnect decision function
-	type ReconnectConfig struct {
-		MaxAttempts int
-		InitialDelay time.Duration
-		MaxDelay time.Duration
-		DelayMultiplier float64
-		Jitter float64
-		ShouldReconnect ReconnectDecider
-	}
-
 	// HeaderProvider receives the current headers and mutates them in place.
 	//
-	// It is called before every request, including retries and stream reconnects.
+	// It is called before every request, including retries.
 	// If an error is returned, the request is aborted.
 	type HeaderProvider func(ctx context.Context, h http.Header) error
 
@@ -1008,8 +1033,7 @@ var CLIENT_RUNTIME = dedent2(
 
 	// internalClient is the core engine used by the generated client abstraction.
 	//
-	// It is safe for concurrent use and can be reused across procedure calls and
-	// stream subscriptions. The zero value is not usable; use newInternalClient.
+	// It is safe for concurrent use and can be reused across procedure calls. The zero value is not usable; use newInternalClient.
 	//
 	// The zero value is not usable \u2013 use newInternalClient to construct one.
 	type internalClient struct {
@@ -1028,14 +1052,10 @@ var CLIENT_RUNTIME = dedent2(
 		// Default Configurations
 		globalRetryConf *RetryConfig
 		globalTimeoutConf *TimeoutConfig
-		globalReconnectConf *ReconnectConfig
-		globalMaxMessageSize int64
 
 		// Per-RPC Default Configurations
 		rpcRetryConf map[string]*RetryConfig
 		rpcTimeoutConf map[string]*TimeoutConfig
-		rpcReconnectConf map[string]*ReconnectConfig
-		rpcMaxMessageSize map[string]int64
 
 		// mu protects concurrent access to the configuration maps
 		mu sync.RWMutex
@@ -1091,25 +1111,11 @@ var CLIENT_RUNTIME = dedent2(
 		}
 	}
 
-	// withGlobalReconnectConfig sets the global default reconnection configuration.
-	func withGlobalReconnectConfig(conf ReconnectConfig) internalClientOption {
-		return func(client *internalClient) {
-			client.globalReconnectConf = &conf
-		}
-	}
-
-	// withGlobalMaxMessageSize sets the global maximum message size for streams.
-	func withGlobalMaxMessageSize(size int64) internalClientOption {
-		return func(client *internalClient) {
-			client.globalMaxMessageSize = size
-		}
-	}
-
 	// newInternalClient creates a new internalClient capable of talking to the VDL server.
 	//
 	// The caller can optionally pass functional options to customize transport
-	// behavior, headers, interceptors, and retry/reconnect policies.
-	func newInternalClient(baseURL string, procDefs []OperationDefinition, streamDefs []OperationDefinition, opts ...internalClientOption) *internalClient {
+	// behavior, headers, interceptors, and retry policies.
+	func newInternalClient(baseURL string, procDefs []OperationDefinition, opts ...internalClientOption) *internalClient {
 		operationDefs := make(map[string]map[string]OperationDefinition)
 
 		ensureRPC := func(rpcName string) {
@@ -1123,10 +1129,6 @@ var CLIENT_RUNTIME = dedent2(
 			operationDefs[def.RPCName][def.Name] = def
 		}
 
-		for _, def := range streamDefs {
-			ensureRPC(def.RPCName)
-			operationDefs[def.RPCName][def.Name] = def
-		}
 
 		client := &internalClient{
 			baseURL: strings.TrimRight(baseURL, "/"),
@@ -1137,8 +1139,6 @@ var CLIENT_RUNTIME = dedent2(
 			rpcHeaderProviders: make(map[string][]HeaderProvider),
 			rpcRetryConf: make(map[string]*RetryConfig),
 			rpcTimeoutConf: make(map[string]*TimeoutConfig),
-			rpcReconnectConf: make(map[string]*ReconnectConfig),
-			rpcMaxMessageSize: make(map[string]int64),
 		}
 
 		// Apply functional options.
@@ -1161,20 +1161,6 @@ var CLIENT_RUNTIME = dedent2(
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		c.rpcTimeoutConf[rpcName] = &conf
-	}
-
-	// setRPCReconnectConfig sets the default reconnect configuration for a specific RPC service.
-	func (c *internalClient) setRPCReconnectConfig(rpcName string, conf ReconnectConfig) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.rpcReconnectConf[rpcName] = &conf
-	}
-
-	// setRPCMaxMessageSize sets the default maximum stream message size for a specific RPC service.
-	func (c *internalClient) setRPCMaxMessageSize(rpcName string, size int64) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.rpcMaxMessageSize[rpcName] = size
 	}
 
 	// setRPCHeaderProvider adds a header provider for a specific RPC service.
@@ -1223,46 +1209,6 @@ var CLIENT_RUNTIME = dedent2(
 			return c.globalTimeoutConf
 		}
 		return &TimeoutConfig{Timeout: 30 * time.Second}
-	}
-
-	// mergeReconnectConfig resolves reconnect configuration using this precedence:
-	// operation override > RPC override > global override > default.
-	func (c *internalClient) mergeReconnectConfig(rpcName string, opConf *ReconnectConfig) *ReconnectConfig {
-		if opConf != nil {
-			return opConf
-		}
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		if rpcConf, ok := c.rpcReconnectConf[rpcName]; ok {
-			return rpcConf
-		}
-		if c.globalReconnectConf != nil {
-			return c.globalReconnectConf
-		}
-		return &ReconnectConfig{
-			MaxAttempts: 30,
-			InitialDelay: time.Second,
-			MaxDelay: 30 * time.Second,
-			DelayMultiplier: 1.5,
-			Jitter: 0.2,
-		}
-	}
-
-	// mergeMaxMessageSize resolves the maximum stream message size using this precedence:
-	// operation override > RPC override > global override > default.
-	func (c *internalClient) mergeMaxMessageSize(rpcName string, opSize int64) int64 {
-		if opSize > 0 {
-			return opSize
-		}
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		if rpcSize, ok := c.rpcMaxMessageSize[rpcName]; ok && rpcSize > 0 {
-			return rpcSize
-		}
-		if c.globalMaxMessageSize > 0 {
-			return c.globalMaxMessageSize
-		}
-		return 4 * 1024 * 1024
 	}
 
 	// executeChain builds the interceptor chain and executes the final invoker.
@@ -1314,7 +1260,6 @@ var CLIENT_RUNTIME = dedent2(
 			RPCName: rpcName,
 			OperationName: procName,
 			Input: input,
-			Type: OperationTypeProc,
 			Annotations: cloneAnnotations(operation.Annotations),
 		}
 
@@ -1338,7 +1283,7 @@ var CLIENT_RUNTIME = dedent2(
 				}, nil
 			}
 
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, req.RPCName, req.OperationName)
+			url := fmt.Sprintf("%s/%s/%s", c.baseURL, lowerFirst(req.RPCName), req.OperationName)
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -1492,307 +1437,6 @@ var CLIENT_RUNTIME = dedent2(
 		return nil
 	}
 
-	// stream establishes a Server-Sent Events subscription for the given stream.
-	func (c *internalClient) stream(ctx context.Context, rpcName string, streamName string, input any, opHeaderProviders []HeaderProvider, opReconnectConf *ReconnectConfig, opMaxMessageSize int64, onConnect func(), onDisconnect func(error), onReconnect func(int, time.Duration)) <-chan Response[json.RawMessage] {
-		events := make(chan Response[json.RawMessage], 1)
-
-		operation, ok := c.lookupOperation(rpcName, streamName)
-		if !ok {
-			errValue := Error{
-				Category: "ClientError",
-				Code: "INVALID_STREAM",
-				Message: fmt.Sprintf("%s.%s stream not found in schema", rpcName, streamName),
-				Details: map[string]any{"rpc": rpcName, "stream": streamName},
-			}
-			events <- Response[json.RawMessage]{
-				Ok: false,
-				Error: errValue,
-			}
-			close(events)
-			if onDisconnect != nil {
-				onDisconnect(errValue)
-			}
-			return events
-		}
-
-		reqInfo := RequestInfo{
-			RPCName: rpcName,
-			OperationName: streamName,
-			Input: input,
-			Type: OperationTypeStream,
-			Annotations: cloneAnnotations(operation.Annotations),
-		}
-
-		invoker := func(callCtx context.Context, req RequestInfo) (Response[json.RawMessage], error) {
-			reconnectConf := c.mergeReconnectConfig(req.RPCName, opReconnectConf)
-			maxMessageSize := c.mergeMaxMessageSize(req.RPCName, opMaxMessageSize)
-			payload, err := encodeRequestPayload(req.Input)
-			if err != nil {
-				errValue := ToError(fmt.Errorf("failed to marshal input for %s.%s: %w", req.RPCName, req.OperationName, err))
-				events <- Response[json.RawMessage]{Ok: false, Error: errValue}
-				close(events)
-				if onDisconnect != nil {
-					onDisconnect(errValue)
-				}
-				return Response[json.RawMessage]{Ok: false, Error: errValue}, nil
-			}
-
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, req.RPCName, req.OperationName)
-
-			go func() {
-				defer close(events)
-				var finalErr error
-				defer func() {
-					if onDisconnect != nil {
-						onDisconnect(finalErr)
-					}
-				}()
-
-				reconnectAttempt := 0
-				for {
-					if callCtx.Err() != nil {
-						finalErr = callCtx.Err()
-						return
-					}
-
-					httpRequest, err := http.NewRequestWithContext(callCtx, http.MethodPost, url, bytes.NewReader(payload))
-					if err != nil {
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					httpRequest.Header.Set("Content-Type", "application/json")
-					httpRequest.Header.Set("Accept", "text/event-stream")
-
-					if err := c.applyHeaderProviders(callCtx, req.RPCName, httpRequest.Header, opHeaderProviders); err != nil {
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					response, err := c.httpClient.Do(httpRequest)
-					if err != nil {
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: 0,
-								Error: err,
-							})
-						}
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					if response.StatusCode >= 500 {
-						httpErr := Error{
-							Category: "HTTPError",
-							Code: "BAD_STATUS",
-							Message: fmt.Sprintf("unexpected HTTP status: %s", response.Status),
-							Details: map[string]any{"status": response.StatusCode},
-						}
-
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: response.StatusCode,
-								Error: httpErr,
-							})
-						}
-						response.Body.Close()
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-
-						finalErr = httpErr
-						events <- Response[json.RawMessage]{Ok: false, Error: httpErr}
-						return
-					}
-
-					if response.StatusCode < 200 || response.StatusCode >= 300 {
-						httpErr := Error{
-							Category: "HTTPError",
-							Code: "BAD_STATUS",
-							Message: fmt.Sprintf("unexpected HTTP status: %s", response.Status),
-							Details: map[string]any{"status": response.StatusCode},
-						}
-						response.Body.Close()
-						finalErr = httpErr
-						events <- Response[json.RawMessage]{Ok: false, Error: httpErr}
-						return
-					}
-
-					if onConnect != nil {
-						onConnect()
-					}
-					reconnectAttempt = 0
-
-					result := handleStreamEvents(callCtx, response, maxMessageSize, events)
-					response.Body.Close()
-
-					if result.reconnectable {
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: http.StatusOK,
-								Error: result.err,
-							})
-						}
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-					}
-
-					if result.err != nil {
-						finalErr = result.err
-						if result.deliverErrorEvent {
-							events <- Response[json.RawMessage]{Ok: false, Error: ToError(result.err)}
-						}
-					}
-					return
-				}
-			}()
-
-			return Response[json.RawMessage]{Ok: true}, nil
-		}
-
-		_, _ = c.executeChain(ctx, reqInfo, invoker)
-		return events
-	}
-
-	// streamReadResult describes the outcome of processing an SSE response body.
-	type streamReadResult struct {
-		reconnectable bool
-		deliverErrorEvent bool
-		err error
-	}
-
-	// handleStreamEvents consumes Server-Sent Events from the response body.
-	func handleStreamEvents(ctx context.Context, response *http.Response, maxMessageSize int64, events chan<- Response[json.RawMessage]) streamReadResult {
-		scanner := bufio.NewScanner(response.Body)
-		scanner.Buffer(make([]byte, 4096), int(maxMessageSize))
-
-		var dataBuffer bytes.Buffer
-		flush := func() {
-			if dataBuffer.Len() == 0 {
-				return
-			}
-
-			var event Response[json.RawMessage]
-			if err := json.Unmarshal(dataBuffer.Bytes(), &event); err != nil {
-				events <- Response[json.RawMessage]{
-					Ok: false,
-					Error: ToError(fmt.Errorf("received invalid SSE payload: %w", err)),
-				}
-				dataBuffer.Reset()
-				return
-			}
-
-			select {
-			case events <- event:
-			case <-ctx.Done():
-			}
-
-			dataBuffer.Reset()
-		}
-
-		for {
-			select {
-			case <-ctx.Done():
-				return streamReadResult{}
-			default:
-			}
-
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					if err == bufio.ErrTooLong {
-						return streamReadResult{
-							reconnectable: false,
-							deliverErrorEvent: true,
-							err: Error{
-								Category: "ProtocolError",
-								Code: "MESSAGE_TOO_LARGE",
-								Message: fmt.Sprintf("stream message exceeded maximum size of %d bytes", maxMessageSize),
-							},
-						}
-					}
-
-					return streamReadResult{reconnectable: true, err: err}
-				}
-
-				return streamReadResult{}
-			}
-
-			line := scanner.Text()
-			if line == "" {
-				flush()
-				continue
-			}
-
-			if strings.HasPrefix(line, ":") {
-				continue
-			}
-
-			if strings.HasPrefix(line, "data:") {
-				chunk := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-				if int64(dataBuffer.Len()+len(chunk)) > maxMessageSize {
-					return streamReadResult{
-						reconnectable: false,
-						deliverErrorEvent: true,
-						err: Error{
-							Category: "ProtocolError",
-							Code: "MESSAGE_TOO_LARGE",
-							Message: fmt.Sprintf("stream message accumulation exceeded maximum size of %d bytes", maxMessageSize),
-						},
-					}
-				}
-
-				dataBuffer.WriteString(chunk)
-			}
-		}
-	}
-
 	// encodeRequestPayload marshals the request input using an empty JSON object when the input is nil.
 	func encodeRequestPayload(input any) ([]byte, error) {
 		if input == nil {
@@ -1804,20 +1448,6 @@ var CLIENT_RUNTIME = dedent2(
 
 	// calculateBackoff computes the delay for a retry attempt.
 	func calculateBackoff(config *RetryConfig, attempt int) time.Duration {
-		delay := config.InitialDelay
-		for index := 1; index < attempt; index++ {
-			delay = time.Duration(float64(delay) * config.DelayMultiplier)
-		}
-
-		if config.MaxDelay > 0 && delay > config.MaxDelay {
-			delay = config.MaxDelay
-		}
-
-		return applyJitter(delay, config.Jitter)
-	}
-
-	// calculateReconnectBackoff computes the delay for a reconnect attempt.
-	func calculateReconnectBackoff(config *ReconnectConfig, attempt int) time.Duration {
 		delay := config.InitialDelay
 		for index := 1; index < attempt; index++ {
 			delay = time.Duration(float64(delay) * config.DelayMultiplier)
@@ -1913,21 +1543,9 @@ var CLIENT_RUNTIME = dedent2(
 		return b
 	}
 
-	// WithReconnectConfig sets the default reconnect configuration for streams.
-	func (b *clientBuilder) WithReconnectConfig(conf ReconnectConfig) *clientBuilder {
-		b.opts = append(b.opts, withGlobalReconnectConfig(conf))
-		return b
-	}
-
-	// WithMaxMessageSize sets the default maximum message size for streams.
-	func (b *clientBuilder) WithMaxMessageSize(size int64) *clientBuilder {
-		b.opts = append(b.opts, withGlobalMaxMessageSize(size))
-		return b
-	}
-
 	// Build creates the generated RPC client.
 	func (b *clientBuilder) Build() *Client {
-		intClient := newInternalClient(b.baseURL, VDLProcedures, VDLStreams, b.opts...)
+		intClient := newInternalClient(b.baseURL, VDLProcedures, b.opts...)
 		return &Client{RPCs: &clientRPCRegistry{intClient: intClient}}
 	}
 
@@ -1975,7 +1593,6 @@ function renderClientImports(context) {
   const g = newGenerator().withTabs();
   g.line("import (");
   g.block(() => {
-    g.line('"bufio"');
     g.line('"bytes"');
     g.line('"context"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
@@ -1987,6 +1604,7 @@ function renderClientImports(context) {
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
+    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -2003,7 +1621,6 @@ __name(renderClientServices, "renderClientServices");
 function renderClientService(service, context) {
   const rpcStructName = `client${service.goName}RPC`;
   const procsStructName = `client${service.goName}Procs`;
-  const streamsStructName = `client${service.goName}Streams`;
   const g = newGenerator().withTabs();
   writeComment(
     g,
@@ -2017,7 +1634,6 @@ function renderClientService(service, context) {
     g.block(() => {
       g.line("intClient: r.intClient,");
       g.line(`Procs: &${procsStructName}{intClient: r.intClient},`);
-      g.line(`Streams: &${streamsStructName}{intClient: r.intClient},`);
     });
     g.line("}");
   });
@@ -2031,7 +1647,6 @@ function renderClientService(service, context) {
   g.block(() => {
     g.line("intClient *internalClient");
     g.line(`Procs *${procsStructName}`);
-    g.line(`Streams *${streamsStructName}`);
   });
   g.line("}");
   g.break();
@@ -2060,36 +1675,6 @@ function renderClientService(service, context) {
   g.block(() => {
     g.line(
       `r.intClient.setRPCTimeoutConfig(${renderGoString(service.name)}, conf)`
-    );
-    g.line("return r");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithReconnectConfig sets the default reconnect configuration for every stream in the ${service.name} RPC service.`
-  );
-  g.line(
-    `func (r *${rpcStructName}) WithReconnectConfig(conf ReconnectConfig) *${rpcStructName} {`
-  );
-  g.block(() => {
-    g.line(
-      `r.intClient.setRPCReconnectConfig(${renderGoString(service.name)}, conf)`
-    );
-    g.line("return r");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithMaxMessageSize sets the default maximum stream message size for the ${service.name} RPC service.`
-  );
-  g.line(
-    `func (r *${rpcStructName}) WithMaxMessageSize(size int64) *${rpcStructName} {`
-  );
-  g.block(() => {
-    g.line(
-      `r.intClient.setRPCMaxMessageSize(${renderGoString(service.name)}, size)`
     );
     g.line("return r");
   });
@@ -2144,20 +1729,6 @@ function renderClientService(service, context) {
     g.break();
     g.break();
     g.raw(renderClientProcedure(service, operation, context));
-  }
-  writeComment(
-    g,
-    `${streamsStructName} exposes the generated stream builders for the ${service.name} RPC service.`
-  );
-  g.line(`type ${streamsStructName} struct {`);
-  g.block(() => {
-    g.line("intClient *internalClient");
-  });
-  g.line("}");
-  for (const operation of service.streams) {
-    g.break();
-    g.break();
-    g.raw(renderClientStream(service, operation, context));
   }
   return g.toString();
 }
@@ -2274,201 +1845,24 @@ function renderClientProcedure(service, operation, context) {
       g.line(`return ${outputType}{}, raw.Error`);
     });
     g.line("}");
-    g.line(`var out ${outputType}`);
-    g.line("if err := json.Unmarshal(raw.Output, &out); err != nil {");
-    g.block(() => {
-      g.line(
-        `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${operation.name} output: %v", err)}`
-      );
-    });
-    g.line("}");
-    g.line("return out, nil");
+    if (operation.outputTypeName) {
+      g.line(`var out ${outputType}`);
+      g.line("if err := json.Unmarshal(raw.Output, &out); err != nil {");
+      g.block(() => {
+        g.line(
+          `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${operation.name} output: %v", err)}`
+        );
+      });
+      g.line("}");
+      g.line("return out, nil");
+    } else {
+      g.line(`return ${outputType}{}, nil`);
+    }
   });
   g.line("}");
   return g.toString();
 }
 __name(renderClientProcedure, "renderClientProcedure");
-function renderClientStream(service, operation, context) {
-  const registryName = `client${service.goName}Streams`;
-  const builderName = `clientBuilder${operation.operationTypeName}Stream`;
-  const inputType = getClientInputType(operation, context);
-  const outputType = getClientOutputType(operation, context);
-  const g = newGenerator().withTabs();
-  writeComment(
-    g,
-    `${operation.goName} creates a stream builder for the ${service.name}.${operation.name} stream.`,
-    operation.doc,
-    operation.deprecated
-  );
-  g.line(
-    `func (registry *${registryName}) ${operation.goName}() *${builderName} {`
-  );
-  g.block(() => {
-    g.line(
-      `return &${builderName}{client: registry.intClient, headerProviders: []HeaderProvider{}, rpcName: ${renderGoString(service.name)}, name: ${renderGoString(operation.name)}}`
-    );
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `${builderName} configures and executes subscriptions to the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`type ${builderName} struct {`);
-  g.block(() => {
-    g.line("rpcName string");
-    g.line("name string");
-    g.line("client *internalClient");
-    g.line("headerProviders []HeaderProvider");
-    g.line("reconnectConf *ReconnectConfig");
-    g.line("maxMessageSize int64");
-    g.line("onConnect func()");
-    g.line("onDisconnect func(error)");
-    g.line("onReconnect func(int, time.Duration)");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithHeader adds a static header to the ${service.name}.${operation.name} stream subscription.`
-  );
-  g.line(
-    `func (b *${builderName}) WithHeader(key string, value string) *${builderName} {`
-  );
-  g.block(() => {
-    g.line(
-      "b.headerProviders = append(b.headerProviders, func(_ context.Context, h http.Header) error {"
-    );
-    g.block(() => {
-      g.line("h.Set(key, value)");
-      g.line("return nil");
-    });
-    g.line("})");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithHeaderProvider adds a dynamic header provider to the ${service.name}.${operation.name} stream subscription.`
-  );
-  g.line(
-    `func (b *${builderName}) WithHeaderProvider(provider HeaderProvider) *${builderName} {`
-  );
-  g.block(() => {
-    g.line("b.headerProviders = append(b.headerProviders, provider)");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithReconnectConfig overrides reconnect behavior for the ${service.name}.${operation.name} stream subscription.`
-  );
-  g.line(
-    `func (b *${builderName}) WithReconnectConfig(conf ReconnectConfig) *${builderName} {`
-  );
-  g.block(() => {
-    g.line("b.reconnectConf = &conf");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `WithMaxMessageSize overrides the maximum message size for the ${service.name}.${operation.name} stream subscription.`
-  );
-  g.line(
-    `func (b *${builderName}) WithMaxMessageSize(size int64) *${builderName} {`
-  );
-  g.block(() => {
-    g.line("b.maxMessageSize = size");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `OnConnect registers a callback that runs after the ${service.name}.${operation.name} stream connects.`
-  );
-  g.line(`func (b *${builderName}) OnConnect(cb func()) *${builderName} {`);
-  g.block(() => {
-    g.line("b.onConnect = cb");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `OnDisconnect registers a callback that runs after the ${service.name}.${operation.name} stream stops.`
-  );
-  g.line(
-    `func (b *${builderName}) OnDisconnect(cb func(error)) *${builderName} {`
-  );
-  g.block(() => {
-    g.line("b.onDisconnect = cb");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `OnReconnect registers a callback that runs before the ${service.name}.${operation.name} stream reconnects.`
-  );
-  g.line(
-    `func (b *${builderName}) OnReconnect(cb func(int, time.Duration)) *${builderName} {`
-  );
-  g.block(() => {
-    g.line("b.onReconnect = cb");
-    g.line("return b");
-  });
-  g.line("}");
-  g.break();
-  writeComment(
-    g,
-    `Execute opens the ${service.name}.${operation.name} stream and returns its event channel.`
-  );
-  g.line(
-    `func (b *${builderName}) Execute(ctx context.Context, input ${inputType}) <-chan Response[${outputType}] {`
-  );
-  g.block(() => {
-    g.line(
-      "rawEvents := b.client.stream(ctx, b.rpcName, b.name, input, b.headerProviders, b.reconnectConf, b.maxMessageSize, b.onConnect, b.onDisconnect, b.onReconnect)"
-    );
-    g.line(`out := make(chan Response[${outputType}])`);
-    g.line("go func() {");
-    g.block(() => {
-      g.line("defer close(out)");
-      g.line("for event := range rawEvents {");
-      g.block(() => {
-        g.line("if !event.Ok {");
-        g.block(() => {
-          g.line(
-            `out <- Response[${outputType}]{Ok: false, Error: event.Error}`
-          );
-          g.line("continue");
-        });
-        g.line("}");
-        g.line(`var output ${outputType}`);
-        g.line("if err := json.Unmarshal(event.Output, &output); err != nil {");
-        g.block(() => {
-          g.line(
-            `out <- Response[${outputType}]{Ok: false, Error: Error{Message: fmt.Sprintf("failed to decode ${service.name}.${operation.name} output: %v", err)}}`
-          );
-          g.line("continue");
-        });
-        g.line("}");
-        g.line(`out <- Response[${outputType}]{Ok: true, Output: output}`);
-      });
-      g.line("}");
-    });
-    g.line("}()");
-    g.line("return out");
-  });
-  g.line("}");
-  return g.toString();
-}
-__name(renderClientStream, "renderClientStream");
 function writeComment(g, summary, doc, deprecated) {
   g.raw(renderCommentBlock({ summary, doc, deprecated }));
   g.break();
@@ -2510,16 +1904,14 @@ var SERVER_RUNTIME = dedent2(
     RequestBody() io.Reader
     // SetHeader sets a response header with the specified key-value pair.
     // This is used to configure response headers like Content-Type and
-    // caching directives for both procedure and stream responses.
+    // caching directives for procedure responses.
     SetHeader(key, value string)
     // Write writes the provided data to the response body.
     // Returns the number of bytes written and any error encountered.
-    // For procedures, this writes the complete JSON response. For streams,
-    // this writes individual Server-Sent Events data chunks.
+    // For procedures, this writes the complete JSON response.
     Write(data []byte) (int, error)
     // Flush immediately sends any buffered response data to the client.
-    // This is crucial for streaming responses to ensure real-time delivery
-    // of events. Returns an error if the flush operation fails.
+    // Returns an error if the flush operation fails.
     Flush() error
   }
 
@@ -2554,7 +1946,7 @@ var SERVER_RUNTIME = dedent2(
 
   // SetHeader sets a response header with the specified key-value pair.
   // This configures headers for the HTTP response, such as Content-Type
-  // for JSON responses or streaming-specific headers.
+  // for JSON responses.
   func (r *NetHTTPAdapter) SetHeader(key, value string) {
     r.responseWriter.Header().Set(key, value)
   }
@@ -2566,7 +1958,7 @@ var SERVER_RUNTIME = dedent2(
   }
 
   // Flush immediately sends any buffered response data to the client.
-  // For streaming responses, this ensures real-time delivery of events.
+  // Flush is a no-op when the writer does not support flushing.
   // If the underlying ResponseWriter doesn't support flushing, this is a no-op.
   func (r *NetHTTPAdapter) Flush() error {
     if f, ok := r.responseWriter.(http.Flusher); ok {
@@ -2611,10 +2003,7 @@ var SERVER_RUNTIME = dedent2(
   // OperationName returns the name of the operation (e.g. "CreateUser", "GetPost", etc.)
   func (h *HandlerContext[T, I]) OperationName() string { return h.operation.Name }
 
-  // OperationType returns the type of operation, can be [OperationTypeProc] ("proc") or [OperationTypeStream] ("stream")
-  func (h *HandlerContext[T, I]) OperationType() OperationType { return h.operation.Type }
-
-  // GlobalHandlerFunc is the signature for a global handler function for procedures and streams.
+  // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //
   //   - T: Application-defined context type (props).
   type GlobalHandlerFunc[T any] func(c *HandlerContext[T, any]) (any, error)
@@ -2641,34 +2030,6 @@ var SERVER_RUNTIME = dedent2(
   //   - O: Output payload type for the procedure.
   type ProcMiddlewareFunc[T any, I any, O any] func(next ProcHandlerFunc[T, I, O]) ProcHandlerFunc[T, I, O]
 
-  // StreamHandlerFunc is the signature of the main handler that initializes a stream.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream (subscription parameters).
-  //   - O: Output payload type for the stream (event data).
-  type StreamHandlerFunc[T any, I any, O any] func(c *HandlerContext[T, I], emit EmitFunc[T, I, O]) error
-
-  // StreamMiddlewareFunc is the signature for a middleware that wraps the main stream handler.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type StreamMiddlewareFunc[T any, I any, O any] func(next StreamHandlerFunc[T, I, O]) StreamHandlerFunc[T, I, O]
-
-  // EmitFunc is the signature for emitting events from a stream.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type EmitFunc[T any, I any, O any] func(c *HandlerContext[T, I], output O) error
-
-  // EmitMiddlewareFunc is the signature for a middleware that wraps each call to emit.
-  //
-  //   - T: Application-defined context type (props).
-  //   - I: Input payload type for the stream.
-  //   - O: Output payload type for the stream.
-  type EmitMiddlewareFunc[T any, I any, O any] func(next EmitFunc[T, I, O]) EmitFunc[T, I, O]
-
   // DeserializerFunc function convert raw JSON input into typed input prior to handler execution.
   type DeserializerFunc func(raw json.RawMessage) (any, error)
 
@@ -2680,19 +2041,10 @@ var SERVER_RUNTIME = dedent2(
   //   - T: Application-defined context type (props).
   type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
 
-  // StreamConfig allows configuring the behavior of streams.
-  type StreamConfig struct {
-    // PingInterval is the interval at which ping events are sent to the client
-    // to keep the connection alive. Defaults to 30 seconds.
-    PingInterval time.Duration
-  }
-
-  // -----------------------------------------------------------------------------
   // Internal Server Implementation
   // -----------------------------------------------------------------------------
 
-  // internalServer manages RPC request handling and middleware execution for
-  // both procedures and streams. It maintains handler registrations, middleware
+  // internalServer manages RPC request handling and middleware execution for procedures. It maintains handler registrations, middleware
   // chains, and coordinates the complete request lifecycle.
   //
   // The generic type P represents the user context type, allowing users to pass
@@ -2712,11 +2064,8 @@ var SERVER_RUNTIME = dedent2(
     // Map format: rpcName -> procName -> handler
     procHandlers map[string]map[string]ProcHandlerFunc[T, any, any]
 
-    // streamHandlers stores the final implementation functions for streams
-    // Map format: rpcName -> streamName -> handler
-    streamHandlers map[string]map[string]StreamHandlerFunc[T, any, any]
 
-    // globalMiddlewares contains middlewares that run for every request (both procs and streams)
+    // globalMiddlewares contains middlewares that run for every procedure request
     globalMiddlewares []GlobalMiddlewareFunc[T]
 
     // rpcMiddlewares contains middlewares that run for every request within a specific RPC
@@ -2727,32 +2076,15 @@ var SERVER_RUNTIME = dedent2(
     // Map format: rpcName -> procName -> middlewares
     procMiddlewares map[string]map[string][]ProcMiddlewareFunc[T, any, any]
 
-    // streamMiddlewares contains per-stream middlewares
-    // Map format: rpcName -> streamName -> middlewares
-    streamMiddlewares map[string]map[string][]StreamMiddlewareFunc[T, any, any]
 
-    // streamEmitMiddlewares contains per-stream emit middlewares
-    // Map format: rpcName -> streamName -> middlewares
-    streamEmitMiddlewares map[string]map[string][]EmitMiddlewareFunc[T, any, any]
 
     // procDeserializers contains per-procedure input deserializers
     // Map format: rpcName -> procName -> deserializer
     procDeserializers map[string]map[string]DeserializerFunc
 
-    // streamDeserializers contains per-stream input deserializers
-    // Map format: rpcName -> streamName -> deserializer
-    streamDeserializers map[string]map[string]DeserializerFunc
 
-    // globalStreamConfig contains the global configuration for streams
-    globalStreamConfig StreamConfig
 
-    // rpcStreamConfigs contains per-RPC configuration for streams
-    // Map format: rpcName -> config
-    rpcStreamConfigs map[string]StreamConfig
 
-    // streamConfigs contains per-stream configuration
-    // Map format: rpcName -> streamName -> config
-    streamConfigs map[string]map[string]StreamConfig
 
     // globalErrorHandler is the global error handler
     globalErrorHandler ErrorHandlerFunc[T]
@@ -2763,7 +2095,7 @@ var SERVER_RUNTIME = dedent2(
   }
 
   // newInternalServer creates a new VDL server instance with the specified
-  // procedure and stream definitions. The server is initialized with empty handler
+  // procedure definitions. The server is initialized with empty handler
   // maps and middleware slices, ready for registration.
   //
   // The generic type T represents the user context type, used to pass additional
@@ -2772,23 +2104,16 @@ var SERVER_RUNTIME = dedent2(
   //
   // Parameters:
   //   - procDefs: List of procedure definitions that this server will handle
-  //   - streamDefs: List of stream definitions that this server will handle
   //   - T: Application-defined context type (props).
   //
   // Returns a new internalServer instance ready for handler and middleware registration.
-  func newInternalServer[T any](procDefs []OperationDefinition, streamDefs []OperationDefinition) *internalServer[T] {
+  func newInternalServer[T any](procDefs []OperationDefinition) *internalServer[T] {
     // Initialize maps
     operationDefs := make(map[string]map[string]OperationDefinition)
     procHandlers := make(map[string]map[string]ProcHandlerFunc[T, any, any])
-    streamHandlers := make(map[string]map[string]StreamHandlerFunc[T, any, any])
     rpcMiddlewares := make(map[string][]GlobalMiddlewareFunc[T])
     procMiddlewares := make(map[string]map[string][]ProcMiddlewareFunc[T, any, any])
-    streamMiddlewares := make(map[string]map[string][]StreamMiddlewareFunc[T, any, any])
-    streamEmitMiddlewares := make(map[string]map[string][]EmitMiddlewareFunc[T, any, any])
     procDeserializers := make(map[string]map[string]DeserializerFunc)
-    streamDeserializers := make(map[string]map[string]DeserializerFunc)
-    rpcStreamConfigs := make(map[string]StreamConfig)
-    streamConfigs := make(map[string]map[string]StreamConfig)
     rpcErrorHandlers := make(map[string]ErrorHandlerFunc[T])
 
     // Helper to ensure RPC map existence
@@ -2796,21 +2121,12 @@ var SERVER_RUNTIME = dedent2(
       if _, ok := operationDefs[rpcName]; !ok {
         operationDefs[rpcName] = make(map[string]OperationDefinition)
         procHandlers[rpcName] = make(map[string]ProcHandlerFunc[T, any, any])
-        streamHandlers[rpcName] = make(map[string]StreamHandlerFunc[T, any, any])
         procMiddlewares[rpcName] = make(map[string][]ProcMiddlewareFunc[T, any, any])
-        streamMiddlewares[rpcName] = make(map[string][]StreamMiddlewareFunc[T, any, any])
-        streamEmitMiddlewares[rpcName] = make(map[string][]EmitMiddlewareFunc[T, any, any])
         procDeserializers[rpcName] = make(map[string]DeserializerFunc)
-        streamDeserializers[rpcName] = make(map[string]DeserializerFunc)
-        streamConfigs[rpcName] = make(map[string]StreamConfig)
       }
     }
 
     for _, def := range procDefs {
-      ensureRPC(def.RPCName)
-      operationDefs[def.RPCName][def.Name] = def
-    }
-    for _, def := range streamDefs {
       ensureRPC(def.RPCName)
       operationDefs[def.RPCName][def.Name] = def
     }
@@ -2819,23 +2135,16 @@ var SERVER_RUNTIME = dedent2(
       handlersMu:            sync.RWMutex{},
       operationDefs:         operationDefs,
       procHandlers:          procHandlers,
-      streamHandlers:        streamHandlers,
       globalMiddlewares:     []GlobalMiddlewareFunc[T]{},
       rpcMiddlewares:        rpcMiddlewares,
       procMiddlewares:       procMiddlewares,
-      streamMiddlewares:     streamMiddlewares,
-      streamEmitMiddlewares: streamEmitMiddlewares,
       procDeserializers:     procDeserializers,
-      streamDeserializers:   streamDeserializers,
-      globalStreamConfig:    StreamConfig{PingInterval: 30 * time.Second},
-      rpcStreamConfigs:      rpcStreamConfigs,
-      streamConfigs:         streamConfigs,
       globalErrorHandler:    nil,
       rpcErrorHandlers:      rpcErrorHandlers,
     }
   }
 
-  // addGlobalMiddleware registers a global middleware that executes for every request (proc and stream).
+  // addGlobalMiddleware registers a global middleware that executes for every procedure request.
   // Middlewares are executed in the order they were registered.
   func (s *internalServer[T]) addGlobalMiddleware(
     mw GlobalMiddlewareFunc[T],
@@ -2868,59 +2177,6 @@ var SERVER_RUNTIME = dedent2(
     s.handlersMu.Lock()
     defer s.handlersMu.Unlock()
     s.procMiddlewares[rpcName][procName] = append(s.procMiddlewares[rpcName][procName], mw)
-    return s
-  }
-
-  // addStreamMiddleware registers a wrapper middleware for a specific stream.
-  // Middlewares are executed in the order they were registered.
-  func (s *internalServer[T]) addStreamMiddleware(
-    rpcName string,
-    streamName string,
-    mw StreamMiddlewareFunc[T, any, any],
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamMiddlewares[rpcName][streamName] = append(s.streamMiddlewares[rpcName][streamName], mw)
-    return s
-  }
-
-  // addStreamEmitMiddleware registers an emit wrapper middleware for a specific stream.
-  // Middlewares are executed in the order they were registered.
-  func (s *internalServer[T]) addStreamEmitMiddleware(
-    rpcName string,
-    streamName string,
-    mw EmitMiddlewareFunc[T, any, any],
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamEmitMiddlewares[rpcName][streamName] = append(s.streamEmitMiddlewares[rpcName][streamName], mw)
-    return s
-  }
-
-  // setGlobalStreamConfig sets the global configuration for streams.
-  func (s *internalServer[T]) setGlobalStreamConfig(cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    if cfg.PingInterval <= 0 {
-      cfg.PingInterval = 30 * time.Second
-    }
-    s.globalStreamConfig = cfg
-    return s
-  }
-
-  // setRPCStreamConfig sets the configuration for streams within a specific RPC.
-  func (s *internalServer[T]) setRPCStreamConfig(rpcName string, cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.rpcStreamConfigs[rpcName] = cfg
-    return s
-  }
-
-  // setStreamConfig sets the configuration for a specific stream.
-  func (s *internalServer[T]) setStreamConfig(rpcName, streamName string, cfg StreamConfig) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    s.streamConfigs[rpcName][streamName] = cfg
     return s
   }
 
@@ -2979,37 +2235,17 @@ var SERVER_RUNTIME = dedent2(
     return s
   }
 
-  // setStreamHandler registers the final implementation function and deserializer for the specified stream name.
-  // The provided functions are stored as-is. Middlewares are composed at request time.
-  //
-  // Panics if a handler is already registered for the given stream name.
-  func (s *internalServer[T]) setStreamHandler(
-    rpcName string,
-    streamName string,
-    handler StreamHandlerFunc[T, any, any],
-    deserializer DeserializerFunc,
-  ) *internalServer[T] {
-    s.handlersMu.Lock()
-    defer s.handlersMu.Unlock()
-    if _, exists := s.streamHandlers[rpcName][streamName]; exists {
-      panic(fmt.Sprintf("the stream handler for %s.%s is already registered", rpcName, streamName))
-    }
-    s.streamHandlers[rpcName][streamName] = handler
-    s.streamDeserializers[rpcName][streamName] = deserializer
-    return s
-  }
-
-  // handleRequest processes an incoming RPC request by parsing the request body,
-  // building the global middleware chain, and dispatching to the appropriate
-  // adapter (procedure or stream).
+  // handleRequest processes an incoming procedure request by parsing the request body,
+  // building the global middleware chain, and dispatching to the procedure handler.
   //
   // The request body must contain a JSON object with the input data for the handler.
+  // An empty body is accepted as empty input per VPP-2.
   //
   // Parameters:
   //   - ctx: The request context
   //   - props: The VDL context containing user-defined data
-  //   - rpcName: The name of the RPC service to invoke
-  //   - operationName: The name of the procedure or stream to invoke
+  //   - rpcName: The RPC service name from the request URL (lowerFirst form)
+  //   - operationName: The name of the procedure to invoke
   //   - httpAdapter: The HTTP adapter for reading requests and writing responses
   //
   // Returns an error if request processing fails at the transport level.
@@ -3024,17 +2260,27 @@ var SERVER_RUNTIME = dedent2(
       return fmt.Errorf("the HTTP adapter is nil, please provide a valid adapter")
     }
 
-    // Decode the request body into a json.RawMessage as the initial input container
+    // Decode the request body into a json.RawMessage. An empty body is valid
+    // empty input per VPP-2 and must not fail the transport.
     var rawInput json.RawMessage
     if err := json.NewDecoder(httpAdapter.RequestBody()).Decode(&rawInput); err != nil {
-      res := Response[any]{
-        Ok:    false,
-        Error: Error{Message: "Invalid request body"},
+      if err != io.EOF {
+        // Tolerate empty bodies reported as EOF or unexpected EOF with no bytes.
+        if len(bytes.TrimSpace(rawInput)) != 0 {
+          res := Response[any]{
+            Ok:    false,
+            Error: Error{Message: "Invalid request body"},
+          }
+          return s.writeProcResponse(httpAdapter, res)
+        }
       }
-      return s.writeProcResponse(httpAdapter, res)
+      rawInput = nil
+    }
+    if len(bytes.TrimSpace(rawInput)) == 0 {
+      rawInput = nil
     }
 
-    operation, operationExists := s.operationDefs[rpcName][operationName]
+    operation, canonicalRPC, canonicalOp, operationExists := s.lookupOperation(rpcName, operationName)
     if !operationExists {
       res := Response[any]{
         Ok:    false,
@@ -3052,46 +2298,16 @@ var SERVER_RUNTIME = dedent2(
       operation: OperationDefinition{
         RPCName:     operation.RPCName,
         Name:        operation.Name,
-        Type:        operation.Type,
         Annotations: cloneAnnotations(operation.Annotations),
       },
     }
 
-    // Handle Stream
-    if operation.Type == OperationTypeStream {
-      err := s.handleStreamRequest(c, rpcName, operationName, rawInput, httpAdapter)
-
-      // If no error, return without sending any response
-      if err == nil {
-        return nil
-      }
-
-      // Send an event with the error before closing the connection
-      errorHandler := s.resolveErrorHandler(rpcName)
-      response := Response[any]{
-        Ok:    false,
-        Error: errorHandler(c, err),
-      }
-
-      jsonData, marshalErr := json.Marshal(response)
-      if marshalErr != nil {
-        return fmt.Errorf("failed to marshal stream error: %w", marshalErr)
-      }
-      resPayload := fmt.Sprintf("data: %s\\n\\n", jsonData)
-      if _, writeErr := httpAdapter.Write([]byte(resPayload)); writeErr != nil {
-        return writeErr
-      }
-      if flushErr := httpAdapter.Flush(); flushErr != nil {
-        return flushErr
-      }
-    }
-
     // Handle Procedure
-    output, err := s.handleProcRequest(c, rpcName, operationName, rawInput)
+    output, err := s.handleProcRequest(c, canonicalRPC, canonicalOp, rawInput)
     response := Response[any]{}
     if err != nil {
       response.Ok = false
-      errorHandler := s.resolveErrorHandler(rpcName)
+      errorHandler := s.resolveErrorHandler(canonicalRPC)
       response.Error = errorHandler(c, err)
     } else {
       response.Ok = true
@@ -3099,6 +2315,24 @@ var SERVER_RUNTIME = dedent2(
     }
 
     return s.writeProcResponse(httpAdapter, response)
+  }
+
+  // lookupOperation resolves an incoming route to its canonical procedure definition.
+  //
+  // The RPC segment matches the VPP-2 lowerFirst transport form. The canonical
+  // VDL service name is returned for handler and middleware lookup.
+  func (s *internalServer[T]) lookupOperation(rpcName string, operationName string) (OperationDefinition, string, string, bool) {
+    s.handlersMu.RLock()
+    defer s.handlersMu.RUnlock()
+    for canonicalRPC, operations := range s.operationDefs {
+      if canonicalRPC != rpcName && lowerFirst(canonicalRPC) != rpcName {
+        continue
+      }
+      if operation, ok := operations[operationName]; ok {
+        return operation, canonicalRPC, operationName, true
+      }
+    }
+    return OperationDefinition{}, "", "", false
   }
 
   // handleProcRequest builds the per-request middleware chain for a procedure and executes it.
@@ -3160,150 +2394,6 @@ var SERVER_RUNTIME = dedent2(
     return exec(c)
   }
 
-  // handleStreamRequest builds the per-request middleware chain for a stream, sets up SSE,
-  // composes emit middlewares, and executes the stream handler.
-  func (s *internalServer[T]) handleStreamRequest(
-    c *HandlerContext[T, any],
-    rpcName string,
-    streamName string,
-    rawInput json.RawMessage,
-    httpAdapter HTTPAdapter,
-  ) error {
-    // Snapshot handler, middlewares, emit middlewares and deserializer under read lock
-    s.handlersMu.RLock()
-    baseHandler, ok := s.streamHandlers[rpcName][streamName]
-    streamMws := s.streamMiddlewares[rpcName][streamName]
-    emitMws := s.streamEmitMiddlewares[rpcName][streamName]
-    rpcMws := s.rpcMiddlewares[rpcName]
-    deserialize := s.streamDeserializers[rpcName][streamName]
-
-    // Determine configuration (Precedence: Stream > RPC > Global)
-    pingInterval := s.globalStreamConfig.PingInterval
-    if cfg, ok := s.rpcStreamConfigs[rpcName]; ok && cfg.PingInterval > 0 {
-      pingInterval = cfg.PingInterval
-    }
-    if cfg, ok := s.streamConfigs[rpcName][streamName]; ok && cfg.PingInterval > 0 {
-      pingInterval = cfg.PingInterval
-    }
-
-    s.handlersMu.RUnlock()
-
-    // Set SSE headers to the response
-    httpAdapter.SetHeader("Content-Type", "text/event-stream")
-    httpAdapter.SetHeader("Cache-Control", "no-cache")
-    httpAdapter.SetHeader("Connection", "keep-alive")
-
-    if !ok {
-      return fmt.Errorf("%s.%s stream not implemented", rpcName, streamName)
-    }
-    if deserialize == nil {
-      return fmt.Errorf("%s.%s stream deserializer not registered", rpcName, streamName)
-    }
-
-    // Deserialize, validate and transform input into its typed form
-    typedInput, err := deserialize(rawInput)
-    if err != nil {
-      return err
-    }
-    c.Input = typedInput
-
-    // We need to synchronize writes to the httpAdapter because pings run in a separate goroutine.
-    // The closed flag prevents writes after the handler returns (when the response writer is invalid).
-    var writeMu sync.Mutex
-    var closed bool
-    safeWrite := func(parts ...[]byte) error {
-      writeMu.Lock()
-      defer writeMu.Unlock()
-      if closed {
-        return nil
-      }
-      for _, part := range parts {
-        if _, err := httpAdapter.Write(part); err != nil {
-          return err
-        }
-      }
-      return httpAdapter.Flush()
-    }
-
-    // Start Ping Loop, use a done channel to wait for goroutine exit before returning
-    ctx, cancel := context.WithCancel(c.Context)
-    pingDone := make(chan struct{})
-
-    go func() {
-      defer close(pingDone)
-      ticker := time.NewTicker(pingInterval)
-      defer ticker.Stop()
-      for {
-        select {
-        case <-ctx.Done():
-          return
-        case <-ticker.C:
-          _ = safeWrite([]byte(": ping\\n\\n"))
-        }
-      }
-    }()
-
-    // Ensure ping goroutine exits and mark response as closed before handler returns
-    defer func() {
-      cancel()
-      <-pingDone
-      writeMu.Lock()
-      closed = true
-      writeMu.Unlock()
-    }()
-
-    // Base emit writes SSE envelope with {ok:true, output}
-    baseEmit := func(_ *HandlerContext[T, any], data any) error {
-      response := Response[any]{
-        Ok:     true,
-        Output: data,
-      }
-      jsonData, err := json.Marshal(response)
-      if err != nil {
-        return fmt.Errorf("failed to marshal stream data: %w", err)
-      }
-      return safeWrite([]byte("data: "), jsonData, []byte("\\n\\n"))
-    }
-
-    // Compose emit middlewares (reverse registration order)
-    emitFinal := baseEmit
-    if len(emitMws) > 0 {
-      mwChain := append([]EmitMiddlewareFunc[T, any, any](nil), emitMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        emitFinal = mwChain[i](emitFinal)
-      }
-    }
-
-    // Compose stream middlewares around the base handler (reverse order)
-    final := baseHandler
-    if len(streamMws) > 0 {
-      mwChain := append([]StreamMiddlewareFunc[T, any, any](nil), streamMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        final = mwChain[i](final)
-      }
-    }
-
-    // Wrap the specific stream chain with RPC-level middlewares (executed before specific ones)
-    exec := func(c *HandlerContext[T, any]) (any, error) { return nil, final(c, emitFinal) }
-    if len(rpcMws) > 0 {
-      mwChain := append([]GlobalMiddlewareFunc[T](nil), rpcMws...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        exec = mwChain[i](exec)
-      }
-    }
-
-    // Wrap with global middlewares (executed before RPC-level ones)
-    if len(s.globalMiddlewares) > 0 {
-      mwChain := append([]GlobalMiddlewareFunc[T](nil), s.globalMiddlewares...)
-      for i := len(mwChain) - 1; i >= 0; i-- {
-        exec = mwChain[i](exec)
-      }
-    }
-
-    _, err = exec(c)
-    return err
-  }
-
   // writeProcResponse writes a procedure response to the client as JSON.
   // This helper method sets the appropriate Content-Type header and marshals
   // the response data before sending it to the client.
@@ -3333,8 +2423,7 @@ var SERVER_RUNTIME = dedent2(
   //
 	// It exposes:
 	//   - Procs: typed entries to register middlewares and the business handler per procedure
-	//   - Streams: typed entries to register middlewares, emit middlewares and the handler per stream
-	//   - Use: a global middleware API that runs for every operation (procedures and streams)
+	//   - Use: a global middleware API that runs for every procedure
 	//
 	// The generic type parameter T is your application context (props) that flows through
 	// the entire request lifecycle (authentication, per-request data, dependencies, etc.).
@@ -3344,7 +2433,7 @@ var SERVER_RUNTIME = dedent2(
   }
 
 	// NewServer creates a new VDL RPC server instance ready to handle all
-	// defined procedures and streams using the middleware-based architecture.
+	// defined procedures using the middleware-based architecture.
 	//
 	// The generic type parameter T is your application context (props) that flows through
 	// the entire request lifecycle (authentication, per-request data, dependencies, etc.).
@@ -3356,14 +2445,14 @@ var SERVER_RUNTIME = dedent2(
 	//   }
 	//   s := NewServer[AppProps]()
   func NewServer[T any]() *Server[T] {
-    intServer := newInternalServer[T](VDLProcedures, VDLStreams)
+    intServer := newInternalServer[T](VDLProcedures)
     return &Server[T]{
       intServer: intServer,
       RPCs: newServerRPCRegistry(intServer),
     }
   }
 
-	// Use registers a global middleware that executes for every request (procedures and streams).
+	// Use registers a global middleware that executes for every procedure request.
 	//
 	// Middlewares are executed in registration order and can:
 	//   - read/augment the HandlerContext
@@ -3371,13 +2460,6 @@ var SERVER_RUNTIME = dedent2(
 	//   - call next to continue the chain
   func (s *Server[T]) Use(mw GlobalMiddlewareFunc[T]) {
     s.intServer.addGlobalMiddleware(mw)
-  }
-
-  // SetStreamConfig sets the global configuration for all streams.
-	//
-	// This applies to all streams unless overridden by RPC-level or stream-specific configurations (if set).
-  func (s *Server[T]) SetStreamConfig(cfg StreamConfig) {
-    s.intServer.setGlobalStreamConfig(cfg)
   }
 
   // SetErrorHandler sets a global error handler that intercepts and transforms errors
@@ -3407,7 +2489,7 @@ var SERVER_RUNTIME = dedent2(
     return s.intServer.handleRequest(ctx, props, rpcName, operationName, httpAdapter)
   }
 
-  // serverRPCRegistry provides typed access to register handlers and middlewares for procedures and streams within a specific RPC service.
+  // serverRPCRegistry provides typed access to register handlers and middlewares for procedures within a specific RPC service.
   type serverRPCRegistry[T any] struct {
     intServer *internalServer[T]
   }
@@ -3442,13 +2524,14 @@ function renderServerImports(context) {
   const g = newGenerator().withTabs();
   g.line("import (");
   g.block(() => {
+    g.line('"bytes"');
     g.line('"context"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
     g.line('"sync"');
-    g.line('"time"');
+    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -3465,7 +2548,6 @@ __name(renderServerServices, "renderServerServices");
 function renderServerService(service, context) {
   const rpcStructName = `server${service.goName}RPC`;
   const procsStructName = `server${service.goName}Procs`;
-  const streamsStructName = `server${service.goName}Streams`;
   const g = newGenerator().withTabs();
   writeComment2(
     g,
@@ -3481,7 +2563,6 @@ function renderServerService(service, context) {
     g.block(() => {
       g.line("intServer: r.intServer,");
       g.line(`Procs: &${procsStructName}[T]{intServer: r.intServer},`);
-      g.line(`Streams: &${streamsStructName}[T]{intServer: r.intServer},`);
     });
     g.line("}");
   });
@@ -3495,7 +2576,6 @@ function renderServerService(service, context) {
   g.block(() => {
     g.line("intServer *internalServer[T]");
     g.line(`Procs *${procsStructName}[T]`);
-    g.line(`Streams *${streamsStructName}[T]`);
   });
   g.line("}");
   g.break();
@@ -3506,18 +2586,6 @@ function renderServerService(service, context) {
   g.line(`func (r *${rpcStructName}[T]) Use(mw GlobalMiddlewareFunc[T]) {`);
   g.block(() => {
     g.line(`r.intServer.addRPCMiddleware(${renderGoString(service.name)}, mw)`);
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `SetStreamConfig sets the default stream configuration for the ${service.name} RPC service.`
-  );
-  g.line(`func (r *${rpcStructName}[T]) SetStreamConfig(cfg StreamConfig) {`);
-  g.block(() => {
-    g.line(
-      `r.intServer.setRPCStreamConfig(${renderGoString(service.name)}, cfg)`
-    );
   });
   g.line("}");
   g.break();
@@ -3545,24 +2613,10 @@ function renderServerService(service, context) {
   });
   g.line("}");
   g.break();
-  writeComment2(
-    g,
-    `${streamsStructName} exposes the generated stream registration APIs for the ${service.name} RPC service.`
-  );
-  g.line(`type ${streamsStructName}[T any] struct {`);
-  g.block(() => {
-    g.line("intServer *internalServer[T]");
-  });
-  g.line("}");
   for (const operation of service.procedures) {
     g.break();
     g.break();
     g.raw(renderServerProcedure(service, operation, context));
-  }
-  for (const operation of service.streams) {
-    g.break();
-    g.break();
-    g.raw(renderServerStream(service, operation, context));
   }
   return g.toString();
 }
@@ -3693,12 +2747,26 @@ function renderServerProcedure(service, operation, context) {
         g.line("operation: cGeneric.operation,");
       });
       g.line("}");
-      g.line("return handler(cSpecific)");
+      if (operation.outputTypeName) {
+        g.line("return handler(cSpecific)");
+      } else {
+        g.line("if _, err := handler(cSpecific); err != nil {");
+        g.block(() => {
+          g.line("return nil, err");
+        });
+        g.line("}");
+        g.line("return nil, nil");
+      }
     });
     g.line("}");
     g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
     g.block(() => {
       if (operation.inputTypeName) {
+        g.line("if len(bytes.TrimSpace(raw)) == 0 {");
+        g.block(() => {
+          g.line('raw = json.RawMessage("{}")');
+        });
+        g.line("}");
         g.line(`var input ${inputType}`);
         g.line("if err := json.Unmarshal(raw, &input); err != nil {");
         g.block(() => {
@@ -3721,252 +2789,6 @@ function renderServerProcedure(service, operation, context) {
   return g.toString();
 }
 __name(renderServerProcedure, "renderServerProcedure");
-function renderServerStream(service, operation, context) {
-  const registryName = `server${service.goName}Streams`;
-  const entryName = `stream${operation.operationTypeName}Entry`;
-  const handlerContextName = `${operation.operationTypeName}HandlerContext`;
-  const emitFuncName = `${operation.operationTypeName}EmitFunc`;
-  const handlerFuncName = `${operation.operationTypeName}HandlerFunc`;
-  const middlewareFuncName = `${operation.operationTypeName}MiddlewareFunc`;
-  const emitMiddlewareFuncName = `${operation.operationTypeName}EmitMiddlewareFunc`;
-  const inputType = getServerInputType(operation, context);
-  const outputType = getServerOutputType(operation, context);
-  const g = newGenerator().withTabs();
-  writeComment2(
-    g,
-    `${operation.goName} returns the registration entry for the ${service.name}.${operation.name} stream.`,
-    operation.doc,
-    operation.deprecated
-  );
-  g.line(
-    `func (r *${registryName}[T]) ${operation.goName}() ${entryName}[T] {`
-  );
-  g.block(() => {
-    g.line(`return ${entryName}[T]{intServer: r.intServer}`);
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `${entryName} contains the generated registration API for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`type ${entryName}[T any] struct {`);
-  g.block(() => {
-    g.line("intServer *internalServer[T]");
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `${handlerContextName} is the typed handler context passed to ${service.name}.${operation.name} stream handlers.`
-  );
-  g.line(`type ${handlerContextName}[T any] = HandlerContext[T, ${inputType}]`);
-  g.break();
-  writeComment2(
-    g,
-    `${emitFuncName} is the typed emit signature for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(
-    `type ${emitFuncName}[T any] func(c *${handlerContextName}[T], output ${outputType}) error`
-  );
-  g.break();
-  writeComment2(
-    g,
-    `${handlerFuncName} is the typed handler signature for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(
-    `type ${handlerFuncName}[T any] func(c *${handlerContextName}[T], emit ${emitFuncName}[T]) error`
-  );
-  g.break();
-  writeComment2(
-    g,
-    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(
-    `type ${middlewareFuncName}[T any] func(next ${handlerFuncName}[T]) ${handlerFuncName}[T]`
-  );
-  g.break();
-  writeComment2(
-    g,
-    `${emitMiddlewareFuncName} is the typed emit middleware signature for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(
-    `type ${emitMiddlewareFuncName}[T any] func(next ${emitFuncName}[T]) ${emitFuncName}[T]`
-  );
-  g.break();
-  writeComment2(
-    g,
-    `SetConfig overrides stream transport configuration for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`func (e ${entryName}[T]) SetConfig(cfg StreamConfig) {`);
-  g.block(() => {
-    g.line(
-      `e.intServer.setStreamConfig(${renderGoString(service.name)}, ${renderGoString(operation.name)}, cfg)`
-    );
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `Use registers typed middleware for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`func (e ${entryName}[T]) Use(mw ${middlewareFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adapted := func(next StreamHandlerFunc[T, any, any]) StreamHandlerFunc[T, any, any] {`
-    );
-    g.block(() => {
-      g.line(
-        `return func(cGeneric *HandlerContext[T, any], emitGeneric EmitFunc[T, any, any]) error {`
-      );
-      g.block(() => {
-        g.line(
-          `typedNext := func(c *${handlerContextName}[T], emit ${emitFuncName}[T]) error {`
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return next(cGeneric, emitGeneric)");
-        });
-        g.line("}");
-        g.line("typedChain := mw(typedNext)");
-        g.line(
-          `emitSpecific := func(c *${handlerContextName}[T], output ${outputType}) error {`
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return emitGeneric(cGeneric, output)");
-        });
-        g.line("}");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-        g.line(`cSpecific := &${handlerContextName}[T]{`);
-        g.block(() => {
-          g.line("Props: cGeneric.Props,");
-          g.line("Input: typedInput,");
-          g.line("Context: cGeneric.Context,");
-          g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("operation: cGeneric.operation,");
-        });
-        g.line("}");
-        g.line("return typedChain(cSpecific, emitSpecific)");
-      });
-      g.line("}");
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.addStreamMiddleware(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adapted)`
-    );
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `UseEmit registers typed emit middleware for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`func (e ${entryName}[T]) UseEmit(mw ${emitMiddlewareFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adapted := func(next EmitFunc[T, any, any]) EmitFunc[T, any, any] {`
-    );
-    g.block(() => {
-      g.line(
-        `return func(cGeneric *HandlerContext[T, any], outputGeneric any) error {`
-      );
-      g.block(() => {
-        g.line(
-          `typedNext := func(c *${handlerContextName}[T], output ${outputType}) error {`
-        );
-        g.block(() => {
-          g.line("cGeneric.Props = c.Props");
-          g.line("cGeneric.Input = c.Input");
-          g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-          g.line("return next(cGeneric, output)");
-        });
-        g.line("}");
-        g.line("emitChain := mw(typedNext)");
-        g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-        g.line(`typedOutput, _ := outputGeneric.(${outputType})`);
-        g.line(`cSpecific := &${handlerContextName}[T]{`);
-        g.block(() => {
-          g.line("Props: cGeneric.Props,");
-          g.line("Input: typedInput,");
-          g.line("Context: cGeneric.Context,");
-          g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("operation: cGeneric.operation,");
-        });
-        g.line("}");
-        g.line("return emitChain(cSpecific, typedOutput)");
-      });
-      g.line("}");
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.addStreamEmitMiddleware(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adapted)`
-    );
-  });
-  g.line("}");
-  g.break();
-  writeComment2(
-    g,
-    `Handle registers the typed business handler for the ${service.name}.${operation.name} stream.`
-  );
-  g.line(`func (e ${entryName}[T]) Handle(handler ${handlerFuncName}[T]) {`);
-  g.block(() => {
-    g.line(
-      `adaptedHandler := func(cGeneric *HandlerContext[T, any], emitGeneric EmitFunc[T, any, any]) error {`
-    );
-    g.block(() => {
-      g.line(
-        `emitSpecific := func(c *${handlerContextName}[T], output ${outputType}) error {`
-      );
-      g.block(() => {
-        g.line("cGeneric.Props = c.Props");
-        g.line("cGeneric.Input = c.Input");
-        g.line("cGeneric.Annotations = cloneAnnotations(c.Annotations)");
-        g.line("return emitGeneric(cGeneric, output)");
-      });
-      g.line("}");
-      g.line(`typedInput, _ := cGeneric.Input.(${inputType})`);
-      g.line(`cSpecific := &${handlerContextName}[T]{`);
-      g.block(() => {
-        g.line("Props: cGeneric.Props,");
-        g.line("Input: typedInput,");
-        g.line("Context: cGeneric.Context,");
-        g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-        g.line("operation: cGeneric.operation,");
-      });
-      g.line("}");
-      g.line("return handler(cSpecific, emitSpecific)");
-    });
-    g.line("}");
-    g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
-    g.block(() => {
-      if (operation.inputTypeName) {
-        g.line(`var input ${inputType}`);
-        g.line("if err := json.Unmarshal(raw, &input); err != nil {");
-        g.block(() => {
-          g.line(
-            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${operation.name} input: %w", err)`
-          );
-        });
-        g.line("}");
-        g.line("return input, nil");
-      } else {
-        g.line("return Void{}, nil");
-      }
-    });
-    g.line("}");
-    g.line(
-      `e.intServer.setStreamHandler(${renderGoString(service.name)}, ${renderGoString(operation.name)}, adaptedHandler, deserializer)`
-    );
-  });
-  g.line("}");
-  return g.toString();
-}
-__name(renderServerStream, "renderServerStream");
 function writeComment2(g, summary, doc, deprecated) {
   g.raw(renderCommentBlock({ summary, doc, deprecated }));
   g.break();
@@ -3987,7 +2809,7 @@ __name(getTypesQualifier2, "getTypesQualifier");
 
 // src/stages/emit/generate-files.ts
 function generateFiles(context) {
-  if (context.procedures.length === 0 && context.streams.length === 0) {
+  if (context.procedures.length === 0) {
     return [];
   }
   return [
@@ -4041,74 +2863,18 @@ function unwrapLiteralValue(value) {
 }
 __name(unwrapLiteralValue, "unwrapLiteralValue");
 
-// src/shared/naming.ts
-var GO_KEYWORDS = /* @__PURE__ */ new Set([
-  "break",
-  "case",
-  "chan",
-  "const",
-  "continue",
-  "default",
-  "defer",
-  "else",
-  "fallthrough",
-  "for",
-  "func",
-  "go",
-  "goto",
-  "if",
-  "import",
-  "interface",
-  "map",
-  "package",
-  "range",
-  "return",
-  "select",
-  "struct",
-  "switch",
-  "type",
-  "var"
-]);
-var GO_PACKAGE_RE = /^[a-z_][a-z0-9_]*$/;
-function isGoKeyword(value) {
-  return GO_KEYWORDS.has(value);
-}
-__name(isGoKeyword, "isGoKeyword");
-function isValidGoPackageName(value) {
-  return GO_PACKAGE_RE.test(value) && !isGoKeyword(value);
-}
-__name(isValidGoPackageName, "isValidGoPackageName");
-function toGoTypeName(value) {
-  return escapeGoIdentifier(pascalCase(value));
-}
-__name(toGoTypeName, "toGoTypeName");
-function toGoFieldName(value) {
-  return escapeGoIdentifier(pascalCase(value));
-}
-__name(toGoFieldName, "toGoFieldName");
-function toInlineTypeName(parentTypeName, fieldName) {
-  return `${parentTypeName}${toGoFieldName(fieldName)}`;
-}
-__name(toInlineTypeName, "toInlineTypeName");
-function escapeGoIdentifier(value) {
-  return isGoKeyword(value) ? `${value}_` : value;
-}
-__name(escapeGoIdentifier, "escapeGoIdentifier");
-
 // src/stages/model/build-context.ts
 function createGeneratorContext(options) {
   const services = [];
   for (const typeDef of options.input.ir.types) {
-    if (!getAnnotation(typeDef.annotations, "rpc")) {
+    if (!getAnnotation(typeDef.annotations, "httpRpc")) {
       continue;
     }
     services.push(buildServiceDescriptor(typeDef));
   }
   const procedures = [];
-  const streams = [];
   for (const service of services) {
     procedures.push(...service.procedures);
-    streams.push(...service.streams);
   }
   return {
     errors: [],
@@ -4117,8 +2883,7 @@ function createGeneratorContext(options) {
       schema: options.input.ir,
       options: options.generatorOptions,
       services,
-      procedures,
-      streams
+      procedures
     }
   };
 }
@@ -4140,18 +2905,12 @@ function buildServiceDescriptor(typeDef) {
     deprecated: getDeprecatedMessage(typeDef.annotations),
     annotations: typeDef.annotations,
     operations,
-    procedures: operations.filter((operation) => operation.kind === "proc"),
-    streams: operations.filter((operation) => operation.kind === "stream")
+    procedures: operations
   };
 }
 __name(buildServiceDescriptor, "buildServiceDescriptor");
 function buildOperationDescriptor(serviceType, field) {
-  const isProc = Boolean(getAnnotation(field.annotations, "proc"));
-  const isStream = Boolean(getAnnotation(field.annotations, "stream"));
-  if (!isProc && !isStream) {
-    return void 0;
-  }
-  if (isProc && isStream) {
+  if (!getAnnotation(field.annotations, "proc")) {
     return void 0;
   }
   const inputField = findOperationField(field, "input");
@@ -4160,7 +2919,6 @@ function buildOperationDescriptor(serviceType, field) {
   const goName = toGoFieldName(field.name);
   const operationTypeName = toInlineTypeName(rpcGoName, field.name);
   return {
-    kind: isProc ? "proc" : "stream",
     rpcName: serviceType.name,
     rpcGoName,
     name: field.name,
@@ -4171,9 +2929,8 @@ function buildOperationDescriptor(serviceType, field) {
     position: field.position,
     doc: field.doc,
     deprecated: getDeprecatedMessage(field.annotations),
-    annotations: filterOperationalAnnotations(
-      field.annotations,
-      isProc ? "proc" : "stream"
+    annotations: field.annotations.filter(
+      (annotation) => annotation.name !== "proc"
     ),
     inputField,
     outputField
@@ -4198,10 +2955,6 @@ function getDeprecatedMessage(annotations) {
   return unwrapLiteral(argument);
 }
 __name(getDeprecatedMessage, "getDeprecatedMessage");
-function filterOperationalAnnotations(annotations, kind) {
-  return annotations.filter((annotation) => annotation.name !== kind);
-}
-__name(filterOperationalAnnotations, "filterOperationalAnnotations");
 
 // node_modules/@varavel/vdl-plugin-sdk/dist/utils/options/get-option-string.js
 function getOptionString(options, key, defaultValue) {
@@ -4260,7 +3013,7 @@ function generate(input) {
     if (optionsResult.errors.length > 0 || !optionsResult.options) {
       return { errors: optionsResult.errors };
     }
-    assertValidIrForRpc(input.ir);
+    assertValidIrForHttpRpc(input.ir);
     const contextResult = createGeneratorContext({
       input,
       generatorOptions: optionsResult.options

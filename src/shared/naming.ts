@@ -59,6 +59,17 @@ export function toGoFieldName(value: string): string {
 }
 
 /**
+ * Lowercases the first Unicode letter and leaves the rest untouched.
+ */
+export function lowerFirst(value: string): string {
+  if (value.length === 0) {
+    return value;
+  }
+  const [first, ...rest] = Array.from(value);
+  return (first as string).toLowerCase() + rest.join("");
+}
+
+/**
  * Derives the Go type name used by `vdl-plugin-go` for inline object fields.
  */
 export function toInlineTypeName(

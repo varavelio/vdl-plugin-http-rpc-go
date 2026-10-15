@@ -46,7 +46,7 @@ describe("createGeneratorContext", () => {
               ),
             ]),
             {
-              annotations: [annotation("rpc")],
+              annotations: [annotation("httpRpc")],
             },
           ),
         ],
@@ -85,7 +85,7 @@ describe("createGeneratorContext", () => {
     expect(operation?.annotations.map((item) => item.name)).toEqual(["cache"]);
   });
 
-  it("ignores non-rpc fields inside rpc services", () => {
+  it("ignores non-proc fields inside httpRpc services", () => {
     const input = pluginInput({
       ir: schema({
         types: [
@@ -98,7 +98,7 @@ describe("createGeneratorContext", () => {
               }),
             ]),
             {
-              annotations: [annotation("rpc")],
+              annotations: [annotation("httpRpc")],
             },
           ),
         ],
@@ -132,7 +132,7 @@ describe("createGeneratorContext", () => {
               }),
             ]),
             {
-              annotations: [annotation("rpc")],
+              annotations: [annotation("httpRpc")],
             },
           ),
         ],

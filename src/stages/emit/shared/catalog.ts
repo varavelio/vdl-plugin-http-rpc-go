@@ -1,5 +1,6 @@
 import { newGenerator } from "@varavel/gen";
 import { dedent } from "@varavel/vdl-plugin-sdk/utils/strings";
+import { lowerFirst } from "../../../shared/naming";
 import type {
   GeneratorContext,
   OperationDescriptor,
@@ -23,21 +24,18 @@ export function renderCatalog(context: GeneratorContext) {
     CATALOG_HEADER,
     renderPathCatalog(context.services),
     renderOperationCatalog("VDLProcedures", context.procedures),
-    renderOperationCatalog("VDLStreams", context.streams),
   ]);
 }
 
 /**
- * Renders the generated Go operation catalogs used by runtime code.
+ * Renders the generated Go procedure catalog used by runtime code.
  */
 function renderOperationCatalog(
   constName: string,
   operations: OperationDescriptor[],
 ): string {
   const summary =
-    constName === "VDLProcedures"
-      ? "VDLProcedures contains every generated procedure definition."
-      : "VDLStreams contains every generated stream definition.";
+    "VDLProcedures contains every generated procedure definition.";
 
   if (operations.length === 0) {
     const g = newGenerator();
@@ -52,13 +50,6 @@ function renderOperationCatalog(
     g.block(() => {
       g.line(`RPCName: ${renderGoString(operation.rpcName)},`);
       g.line(`Name: ${renderGoString(operation.name)},`);
-      g.line(
-        `Type: ${
-          operation.kind === "proc"
-            ? "OperationTypeProc"
-            : "OperationTypeStream"
-        },`,
-      );
       g.line(
         `Annotations: ${renderAnnotationsLiteral(operation.annotations)},`,
       );
@@ -80,14 +71,14 @@ function renderOperationCatalog(
 }
 
 /**
- * Renders a nested catalog of generated operation paths.
+ * Renders a nested catalog of generated procedure paths.
  */
 function renderPathCatalog(services: ServiceDescriptor[]): string {
   const g = newGenerator();
   g.line(
     renderCommentBlock({
       summary:
-        "VDLPaths contains the generated path catalog for every procedure and stream.",
+        "VDLPaths contains the generated path catalog for every procedure.",
     }),
   );
 
@@ -117,7 +108,7 @@ function renderPathCatalog(services: ServiceDescriptor[]): string {
       g.block(() => {
         for (const operation of service.operations) {
           g.line(
-            `${operation.goName}: ${renderGoString(`/${service.name}/${operation.name}`)},`,
+            `${operation.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${operation.name}`)},`,
           );
         }
       });

@@ -7,14 +7,13 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 	// RequestInfo contains information about the RPC request currently being executed.
 	//
-	// It is passed through interceptors and retry/reconnect deciders so callers can
-	// inspect the targeted RPC, operation, request payload, transport mode, and the
+	// It is passed through interceptors and retry deciders so callers can
+	// inspect the targeted RPC, operation, request payload, and the
 	// non-marker annotations declared on the VDL operation.
 	type RequestInfo struct {
 		RPCName string
 		OperationName string
 		Input any
-		Type OperationType
 		Annotations []Annotation
 	}
 
@@ -56,41 +55,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		Timeout time.Duration
 	}
 
-	// ReconnectDecisionContext contains the information passed to a reconnect decider.
-	//
-	// The generated client evaluates this context after a stream connection fails or
-	// breaks unexpectedly so callers can decide whether the stream should reconnect.
-	type ReconnectDecisionContext struct {
-		Request RequestInfo
-		Attempt int
-		ResponseStatus int
-		Error error
-	}
-
-	// ReconnectDecider determines whether a failed stream connection should reconnect.
-	type ReconnectDecider func(ctx context.Context, info ReconnectDecisionContext) bool
-
-	// ReconnectConfig defines reconnection behavior for generated stream calls.
-	//
-	// Parameters:
-	//   - MaxAttempts: Maximum number of reconnection attempts (default: 30)
-	//   - InitialDelay: Initial delay between reconnection attempts (default: 1 second)
-	//   - MaxDelay: Maximum delay between reconnection attempts (default: 30 seconds)
-	//   - DelayMultiplier: Cumulative multiplier applied to InitialDelay on each retry (default: 1.5)
-	//   - Jitter: Randomness factor used to avoid synchronized reconnects (default: 0.2)
-	//   - ShouldReconnect: Optional callback that can override the default reconnect decision function
-	type ReconnectConfig struct {
-		MaxAttempts int
-		InitialDelay time.Duration
-		MaxDelay time.Duration
-		DelayMultiplier float64
-		Jitter float64
-		ShouldReconnect ReconnectDecider
-	}
-
 	// HeaderProvider receives the current headers and mutates them in place.
 	//
-	// It is called before every request, including retries and stream reconnects.
+	// It is called before every request, including retries.
 	// If an error is returned, the request is aborted.
 	type HeaderProvider func(ctx context.Context, h http.Header) error
 
@@ -106,8 +73,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 	// internalClient is the core engine used by the generated client abstraction.
 	//
-	// It is safe for concurrent use and can be reused across procedure calls and
-	// stream subscriptions. The zero value is not usable; use newInternalClient.
+	// It is safe for concurrent use and can be reused across procedure calls. The zero value is not usable; use newInternalClient.
 	//
 	// The zero value is not usable – use newInternalClient to construct one.
 	type internalClient struct {
@@ -126,14 +92,10 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		// Default Configurations
 		globalRetryConf *RetryConfig
 		globalTimeoutConf *TimeoutConfig
-		globalReconnectConf *ReconnectConfig
-		globalMaxMessageSize int64
 
 		// Per-RPC Default Configurations
 		rpcRetryConf map[string]*RetryConfig
 		rpcTimeoutConf map[string]*TimeoutConfig
-		rpcReconnectConf map[string]*ReconnectConfig
-		rpcMaxMessageSize map[string]int64
 
 		// mu protects concurrent access to the configuration maps
 		mu sync.RWMutex
@@ -189,25 +151,11 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		}
 	}
 
-	// withGlobalReconnectConfig sets the global default reconnection configuration.
-	func withGlobalReconnectConfig(conf ReconnectConfig) internalClientOption {
-		return func(client *internalClient) {
-			client.globalReconnectConf = &conf
-		}
-	}
-
-	// withGlobalMaxMessageSize sets the global maximum message size for streams.
-	func withGlobalMaxMessageSize(size int64) internalClientOption {
-		return func(client *internalClient) {
-			client.globalMaxMessageSize = size
-		}
-	}
-
 	// newInternalClient creates a new internalClient capable of talking to the VDL server.
 	//
 	// The caller can optionally pass functional options to customize transport
-	// behavior, headers, interceptors, and retry/reconnect policies.
-	func newInternalClient(baseURL string, procDefs []OperationDefinition, streamDefs []OperationDefinition, opts ...internalClientOption) *internalClient {
+	// behavior, headers, interceptors, and retry policies.
+	func newInternalClient(baseURL string, procDefs []OperationDefinition, opts ...internalClientOption) *internalClient {
 		operationDefs := make(map[string]map[string]OperationDefinition)
 
 		ensureRPC := func(rpcName string) {
@@ -221,10 +169,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			operationDefs[def.RPCName][def.Name] = def
 		}
 
-		for _, def := range streamDefs {
-			ensureRPC(def.RPCName)
-			operationDefs[def.RPCName][def.Name] = def
-		}
 
 		client := &internalClient{
 			baseURL: strings.TrimRight(baseURL, "/"),
@@ -235,8 +179,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			rpcHeaderProviders: make(map[string][]HeaderProvider),
 			rpcRetryConf: make(map[string]*RetryConfig),
 			rpcTimeoutConf: make(map[string]*TimeoutConfig),
-			rpcReconnectConf: make(map[string]*ReconnectConfig),
-			rpcMaxMessageSize: make(map[string]int64),
 		}
 
 		// Apply functional options.
@@ -259,20 +201,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		c.rpcTimeoutConf[rpcName] = &conf
-	}
-
-	// setRPCReconnectConfig sets the default reconnect configuration for a specific RPC service.
-	func (c *internalClient) setRPCReconnectConfig(rpcName string, conf ReconnectConfig) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.rpcReconnectConf[rpcName] = &conf
-	}
-
-	// setRPCMaxMessageSize sets the default maximum stream message size for a specific RPC service.
-	func (c *internalClient) setRPCMaxMessageSize(rpcName string, size int64) {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		c.rpcMaxMessageSize[rpcName] = size
 	}
 
 	// setRPCHeaderProvider adds a header provider for a specific RPC service.
@@ -321,46 +249,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			return c.globalTimeoutConf
 		}
 		return &TimeoutConfig{Timeout: 30 * time.Second}
-	}
-
-	// mergeReconnectConfig resolves reconnect configuration using this precedence:
-	// operation override > RPC override > global override > default.
-	func (c *internalClient) mergeReconnectConfig(rpcName string, opConf *ReconnectConfig) *ReconnectConfig {
-		if opConf != nil {
-			return opConf
-		}
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		if rpcConf, ok := c.rpcReconnectConf[rpcName]; ok {
-			return rpcConf
-		}
-		if c.globalReconnectConf != nil {
-			return c.globalReconnectConf
-		}
-		return &ReconnectConfig{
-			MaxAttempts: 30,
-			InitialDelay: time.Second,
-			MaxDelay: 30 * time.Second,
-			DelayMultiplier: 1.5,
-			Jitter: 0.2,
-		}
-	}
-
-	// mergeMaxMessageSize resolves the maximum stream message size using this precedence:
-	// operation override > RPC override > global override > default.
-	func (c *internalClient) mergeMaxMessageSize(rpcName string, opSize int64) int64 {
-		if opSize > 0 {
-			return opSize
-		}
-		c.mu.RLock()
-		defer c.mu.RUnlock()
-		if rpcSize, ok := c.rpcMaxMessageSize[rpcName]; ok && rpcSize > 0 {
-			return rpcSize
-		}
-		if c.globalMaxMessageSize > 0 {
-			return c.globalMaxMessageSize
-		}
-		return 4 * 1024 * 1024
 	}
 
 	// executeChain builds the interceptor chain and executes the final invoker.
@@ -412,7 +300,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			RPCName: rpcName,
 			OperationName: procName,
 			Input: input,
-			Type: OperationTypeProc,
 			Annotations: cloneAnnotations(operation.Annotations),
 		}
 
@@ -436,7 +323,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 				}, nil
 			}
 
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, req.RPCName, req.OperationName)
+			url := fmt.Sprintf("%s/%s/%s", c.baseURL, lowerFirst(req.RPCName), req.OperationName)
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -590,307 +477,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return nil
 	}
 
-	// stream establishes a Server-Sent Events subscription for the given stream.
-	func (c *internalClient) stream(ctx context.Context, rpcName string, streamName string, input any, opHeaderProviders []HeaderProvider, opReconnectConf *ReconnectConfig, opMaxMessageSize int64, onConnect func(), onDisconnect func(error), onReconnect func(int, time.Duration)) <-chan Response[json.RawMessage] {
-		events := make(chan Response[json.RawMessage], 1)
-
-		operation, ok := c.lookupOperation(rpcName, streamName)
-		if !ok {
-			errValue := Error{
-				Category: "ClientError",
-				Code: "INVALID_STREAM",
-				Message: fmt.Sprintf("%s.%s stream not found in schema", rpcName, streamName),
-				Details: map[string]any{"rpc": rpcName, "stream": streamName},
-			}
-			events <- Response[json.RawMessage]{
-				Ok: false,
-				Error: errValue,
-			}
-			close(events)
-			if onDisconnect != nil {
-				onDisconnect(errValue)
-			}
-			return events
-		}
-
-		reqInfo := RequestInfo{
-			RPCName: rpcName,
-			OperationName: streamName,
-			Input: input,
-			Type: OperationTypeStream,
-			Annotations: cloneAnnotations(operation.Annotations),
-		}
-
-		invoker := func(callCtx context.Context, req RequestInfo) (Response[json.RawMessage], error) {
-			reconnectConf := c.mergeReconnectConfig(req.RPCName, opReconnectConf)
-			maxMessageSize := c.mergeMaxMessageSize(req.RPCName, opMaxMessageSize)
-			payload, err := encodeRequestPayload(req.Input)
-			if err != nil {
-				errValue := ToError(fmt.Errorf("failed to marshal input for %s.%s: %w", req.RPCName, req.OperationName, err))
-				events <- Response[json.RawMessage]{Ok: false, Error: errValue}
-				close(events)
-				if onDisconnect != nil {
-					onDisconnect(errValue)
-				}
-				return Response[json.RawMessage]{Ok: false, Error: errValue}, nil
-			}
-
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, req.RPCName, req.OperationName)
-
-			go func() {
-				defer close(events)
-				var finalErr error
-				defer func() {
-					if onDisconnect != nil {
-						onDisconnect(finalErr)
-					}
-				}()
-
-				reconnectAttempt := 0
-				for {
-					if callCtx.Err() != nil {
-						finalErr = callCtx.Err()
-						return
-					}
-
-					httpRequest, err := http.NewRequestWithContext(callCtx, http.MethodPost, url, bytes.NewReader(payload))
-					if err != nil {
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					httpRequest.Header.Set("Content-Type", "application/json")
-					httpRequest.Header.Set("Accept", "text/event-stream")
-
-					if err := c.applyHeaderProviders(callCtx, req.RPCName, httpRequest.Header, opHeaderProviders); err != nil {
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					response, err := c.httpClient.Do(httpRequest)
-					if err != nil {
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: 0,
-								Error: err,
-							})
-						}
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-
-						finalErr = err
-						events <- Response[json.RawMessage]{Ok: false, Error: ToError(err)}
-						return
-					}
-
-					if response.StatusCode >= 500 {
-						httpErr := Error{
-							Category: "HTTPError",
-							Code: "BAD_STATUS",
-							Message: fmt.Sprintf("unexpected HTTP status: %s", response.Status),
-							Details: map[string]any{"status": response.StatusCode},
-						}
-
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: response.StatusCode,
-								Error: httpErr,
-							})
-						}
-						response.Body.Close()
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-
-						finalErr = httpErr
-						events <- Response[json.RawMessage]{Ok: false, Error: httpErr}
-						return
-					}
-
-					if response.StatusCode < 200 || response.StatusCode >= 300 {
-						httpErr := Error{
-							Category: "HTTPError",
-							Code: "BAD_STATUS",
-							Message: fmt.Sprintf("unexpected HTTP status: %s", response.Status),
-							Details: map[string]any{"status": response.StatusCode},
-						}
-						response.Body.Close()
-						finalErr = httpErr
-						events <- Response[json.RawMessage]{Ok: false, Error: httpErr}
-						return
-					}
-
-					if onConnect != nil {
-						onConnect()
-					}
-					reconnectAttempt = 0
-
-					result := handleStreamEvents(callCtx, response, maxMessageSize, events)
-					response.Body.Close()
-
-					if result.reconnectable {
-						shouldReconnect := true
-						if reconnectConf.ShouldReconnect != nil {
-							shouldReconnect = reconnectConf.ShouldReconnect(callCtx, ReconnectDecisionContext{
-								Request: req,
-								Attempt: reconnectAttempt + 1,
-								ResponseStatus: http.StatusOK,
-								Error: result.err,
-							})
-						}
-
-						if shouldReconnect && reconnectAttempt < reconnectConf.MaxAttempts {
-							reconnectAttempt++
-							delay := calculateReconnectBackoff(reconnectConf, reconnectAttempt)
-							if onReconnect != nil {
-								onReconnect(reconnectAttempt, delay)
-							}
-							if waitErr := waitForBackoff(callCtx, delay); waitErr != nil {
-								finalErr = waitErr
-								return
-							}
-							continue
-						}
-					}
-
-					if result.err != nil {
-						finalErr = result.err
-						if result.deliverErrorEvent {
-							events <- Response[json.RawMessage]{Ok: false, Error: ToError(result.err)}
-						}
-					}
-					return
-				}
-			}()
-
-			return Response[json.RawMessage]{Ok: true}, nil
-		}
-
-		_, _ = c.executeChain(ctx, reqInfo, invoker)
-		return events
-	}
-
-	// streamReadResult describes the outcome of processing an SSE response body.
-	type streamReadResult struct {
-		reconnectable bool
-		deliverErrorEvent bool
-		err error
-	}
-
-	// handleStreamEvents consumes Server-Sent Events from the response body.
-	func handleStreamEvents(ctx context.Context, response *http.Response, maxMessageSize int64, events chan<- Response[json.RawMessage]) streamReadResult {
-		scanner := bufio.NewScanner(response.Body)
-		scanner.Buffer(make([]byte, 4096), int(maxMessageSize))
-
-		var dataBuffer bytes.Buffer
-		flush := func() {
-			if dataBuffer.Len() == 0 {
-				return
-			}
-
-			var event Response[json.RawMessage]
-			if err := json.Unmarshal(dataBuffer.Bytes(), &event); err != nil {
-				events <- Response[json.RawMessage]{
-					Ok: false,
-					Error: ToError(fmt.Errorf("received invalid SSE payload: %w", err)),
-				}
-				dataBuffer.Reset()
-				return
-			}
-
-			select {
-			case events <- event:
-			case <-ctx.Done():
-			}
-
-			dataBuffer.Reset()
-		}
-
-		for {
-			select {
-			case <-ctx.Done():
-				return streamReadResult{}
-			default:
-			}
-
-			if !scanner.Scan() {
-				if err := scanner.Err(); err != nil {
-					if err == bufio.ErrTooLong {
-						return streamReadResult{
-							reconnectable: false,
-							deliverErrorEvent: true,
-							err: Error{
-								Category: "ProtocolError",
-								Code: "MESSAGE_TOO_LARGE",
-								Message: fmt.Sprintf("stream message exceeded maximum size of %d bytes", maxMessageSize),
-							},
-						}
-					}
-
-					return streamReadResult{reconnectable: true, err: err}
-				}
-
-				return streamReadResult{}
-			}
-
-			line := scanner.Text()
-			if line == "" {
-				flush()
-				continue
-			}
-
-			if strings.HasPrefix(line, ":") {
-				continue
-			}
-
-			if strings.HasPrefix(line, "data:") {
-				chunk := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-				if int64(dataBuffer.Len()+len(chunk)) > maxMessageSize {
-					return streamReadResult{
-						reconnectable: false,
-						deliverErrorEvent: true,
-						err: Error{
-							Category: "ProtocolError",
-							Code: "MESSAGE_TOO_LARGE",
-							Message: fmt.Sprintf("stream message accumulation exceeded maximum size of %d bytes", maxMessageSize),
-						},
-					}
-				}
-
-				dataBuffer.WriteString(chunk)
-			}
-		}
-	}
-
 	// encodeRequestPayload marshals the request input using an empty JSON object when the input is nil.
 	func encodeRequestPayload(input any) ([]byte, error) {
 		if input == nil {
@@ -902,20 +488,6 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 	// calculateBackoff computes the delay for a retry attempt.
 	func calculateBackoff(config *RetryConfig, attempt int) time.Duration {
-		delay := config.InitialDelay
-		for index := 1; index < attempt; index++ {
-			delay = time.Duration(float64(delay) * config.DelayMultiplier)
-		}
-
-		if config.MaxDelay > 0 && delay > config.MaxDelay {
-			delay = config.MaxDelay
-		}
-
-		return applyJitter(delay, config.Jitter)
-	}
-
-	// calculateReconnectBackoff computes the delay for a reconnect attempt.
-	func calculateReconnectBackoff(config *ReconnectConfig, attempt int) time.Duration {
 		delay := config.InitialDelay
 		for index := 1; index < attempt; index++ {
 			delay = time.Duration(float64(delay) * config.DelayMultiplier)
@@ -1011,21 +583,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return b
 	}
 
-	// WithReconnectConfig sets the default reconnect configuration for streams.
-	func (b *clientBuilder) WithReconnectConfig(conf ReconnectConfig) *clientBuilder {
-		b.opts = append(b.opts, withGlobalReconnectConfig(conf))
-		return b
-	}
-
-	// WithMaxMessageSize sets the default maximum message size for streams.
-	func (b *clientBuilder) WithMaxMessageSize(size int64) *clientBuilder {
-		b.opts = append(b.opts, withGlobalMaxMessageSize(size))
-		return b
-	}
-
 	// Build creates the generated RPC client.
 	func (b *clientBuilder) Build() *Client {
-		intClient := newInternalClient(b.baseURL, VDLProcedures, VDLStreams, b.opts...)
+		intClient := newInternalClient(b.baseURL, VDLProcedures, b.opts...)
 		return &Client{RPCs: &clientRPCRegistry{intClient: intClient}}
 	}
 

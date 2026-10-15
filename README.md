@@ -103,42 +103,40 @@ This matches the native Go plugin behavior and lets you swap in compatible JSON 
 
 - `target "client"` writes `client.go`.
 - `target "server"` writes `server.go`.
-- If your schema has no discovered `@rpc`, `@proc` or `@stream` operations, no RPC file is emitted.
+- If your schema has no discovered `@httpRpc`, no RPC file is emitted.
 
 ## What You Get
 
 For `target "client"`:
 
 - `NewClient(baseURL).Build()` to create a typed RPC client.
-- Typed procedure builders and stream builders under `client.RPCs.<Service>()`.
+- Typed procedure builders under `client.RPCs.<Service>().Procs`.
 - Headers and header providers at global, RPC, and operation levels.
-- Interceptors, retry/timeout policies for procs, reconnect policies for streams.
-- Stream lifecycle hooks and max message size controls.
+- Interceptors and retry/timeout policies for procedures.
 
 For `target "server"`:
 
 - `NewServer[Props]()` with typed handler contexts.
-- Typed registration APIs for procedures and streams.
-- Middleware support at global, RPC, procedure, stream, and stream-emit levels.
-- `SetStreamConfig` and `SetErrorHandler` at global and RPC scope.
+- Typed registration APIs for procedures.
+- Middleware support at global, RPC, and procedure levels.
+- `SetErrorHandler` at global and RPC scope.
 - `NewNetHTTPAdapter(...)` + `HandleRequest(...)` integration for `net/http`.
 
 Both targets also include generated operation catalogs:
 
 - `VDLPaths` for static operation paths.
-- `VDLProcedures` and `VDLStreams` with operation metadata.
+- `VDLProcedures` with operation metadata.
 - Non-marker operation annotations preserved as `Annotation` values.
 
 ## RPC Annotation Model
 
-This plugin follows the VDL RPC annotation model:
+This plugin follows VPP-2 HTTP-RPC:
 
-- `@rpc` marks a top-level type as an RPC service.
-- `@proc` marks a field as a request-response operation.
-- `@stream` marks a field as a server-streaming operation.
+- `@httpRpc` marks a top-level type as an HTTP-RPC service.
+- `@proc` marks a field as a request-response procedure.
 
 ```vdl
-@rpc
+@httpRpc
 type Messages {
   @proc
   send {
@@ -151,26 +149,14 @@ type Messages {
       accepted bool
     }
   }
-
-  @stream
-  events {
-    input {
-      roomId string
-    }
-
-    output {
-      text string
-    }
-  }
 }
 ```
 
 Validation rules enforced by the plugin:
 
-- `@rpc` types must be objects.
-- An operation field can be `@proc` or `@stream`, but not both.
-- Operation nodes must be objects.
-- `input` and `output`, when present, must be objects.
+- `@httpRpc` types must be inline objects without arguments.
+- `@proc` members must be inline objects without arguments.
+- `input` and `output`, when present, must be inline objects.
 
 If an operation omits `input` and/or `output`, generated code uses `Void` for the missing payload.
 
@@ -211,7 +197,7 @@ func example() {
 }
 ```
 
-`baseURL` in `NewClient(baseURL)` should point to your RPC prefix (for example: `/rpc`). The generated client appends `/{RPC}/{operation}` automatically.
+`baseURL` in `NewClient(baseURL)` should point to your RPC prefix (for example: `/rpc`). The generated client appends `/{lowerFirst(RPC)}/{procedure}` automatically per VPP-2.
 
 ## License
 

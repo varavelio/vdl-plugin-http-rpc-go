@@ -18,12 +18,11 @@ import type {
   GeneratorContext,
   GeneratorOptions,
   OperationDescriptor,
-  OperationKind,
   ServiceDescriptor,
 } from "./types";
 
 /**
- * Builds the intermediate RPC generation context from the annotation-based IR.
+ * Builds the intermediate HTTP-RPC generation context from the VPP-2 IR.
  */
 export function createGeneratorContext(options: {
   input: PluginInput;
@@ -32,7 +31,7 @@ export function createGeneratorContext(options: {
   const services: ServiceDescriptor[] = [];
 
   for (const typeDef of options.input.ir.types) {
-    if (!getAnnotation(typeDef.annotations, "rpc")) {
+    if (!getAnnotation(typeDef.annotations, "httpRpc")) {
       continue;
     }
 
@@ -40,11 +39,9 @@ export function createGeneratorContext(options: {
   }
 
   const procedures: OperationDescriptor[] = [];
-  const streams: OperationDescriptor[] = [];
 
   for (const service of services) {
     procedures.push(...service.procedures);
-    streams.push(...service.streams);
   }
 
   return {
@@ -55,13 +52,12 @@ export function createGeneratorContext(options: {
       options: options.generatorOptions,
       services,
       procedures,
-      streams,
     },
   };
 }
 
 /**
- * Converts a `@rpc`-annotated type into a service descriptor.
+ * Converts an `@httpRpc`-annotated type into a service descriptor.
  */
 function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
   const operations: OperationDescriptor[] = [];
@@ -81,26 +77,18 @@ function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
     deprecated: getDeprecatedMessage(typeDef.annotations),
     annotations: typeDef.annotations,
     operations,
-    procedures: operations.filter((operation) => operation.kind === "proc"),
-    streams: operations.filter((operation) => operation.kind === "stream"),
+    procedures: operations,
   };
 }
 
 /**
- * Converts a `@proc` or `@stream` field into an operation descriptor.
+ * Converts a `@proc` field into a procedure descriptor.
  */
 function buildOperationDescriptor(
   serviceType: TypeDef,
   field: Field,
 ): OperationDescriptor | undefined {
-  const isProc = Boolean(getAnnotation(field.annotations, "proc"));
-  const isStream = Boolean(getAnnotation(field.annotations, "stream"));
-
-  if (!isProc && !isStream) {
-    return undefined;
-  }
-
-  if (isProc && isStream) {
+  if (!getAnnotation(field.annotations, "proc")) {
     return undefined;
   }
 
@@ -111,7 +99,6 @@ function buildOperationDescriptor(
   const operationTypeName = toInlineTypeName(rpcGoName, field.name);
 
   return {
-    kind: isProc ? "proc" : "stream",
     rpcName: serviceType.name,
     rpcGoName,
     name: field.name,
@@ -126,9 +113,8 @@ function buildOperationDescriptor(
     position: field.position,
     doc: field.doc,
     deprecated: getDeprecatedMessage(field.annotations),
-    annotations: filterOperationalAnnotations(
-      field.annotations,
-      isProc ? "proc" : "stream",
+    annotations: field.annotations.filter(
+      (annotation) => annotation.name !== "proc",
     ),
     inputField,
     outputField,
@@ -136,7 +122,7 @@ function buildOperationDescriptor(
 }
 
 /**
- * Finds the named `input` or `output` field inside an operation object.
+ * Finds the named `input` or `output` field inside a procedure object.
  */
 function findOperationField(
   operationField: Field,
@@ -161,14 +147,4 @@ function getDeprecatedMessage(annotations: Annotation[]): string | undefined {
   }
 
   return unwrapLiteral<string>(argument);
-}
-
-/**
- * Removes the marker annotation itself and keeps the remaining operation annotations.
- */
-function filterOperationalAnnotations(
-  annotations: Annotation[],
-  kind: OperationKind,
-): Annotation[] {
-  return annotations.filter((annotation) => annotation.name !== kind);
 }
