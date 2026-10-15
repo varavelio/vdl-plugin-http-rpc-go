@@ -1,5 +1,8 @@
 package main
 
+// Fixture rpc-catalog tests the generated VDLPaths and VDLProcedures metadata.
+// Goal: prove precomputed RPCRoute and Path values match the VPP-2 routes.
+
 import (
 	"fmt"
 	"os"

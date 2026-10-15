@@ -1,5 +1,8 @@
 package main
 
+// Fixture same-package-rpc tests client code generated into the types package.
+// Goal: prove no self-import occurs when typesImport is empty.
+
 import (
 	"context"
 	"fmt"

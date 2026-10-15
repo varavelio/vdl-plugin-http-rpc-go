@@ -1,5 +1,8 @@
 package main
 
+// Fixture no-rpc tests a schema without any @httpRpc service.
+// Goal: prove no RPC files emit while plain types still generate.
+
 import (
 	"fmt"
 	"os"

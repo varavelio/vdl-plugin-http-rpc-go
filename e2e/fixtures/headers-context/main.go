@@ -1,5 +1,8 @@
 package main
 
+// Fixture headers-context tests incoming headers captured into handler props.
+// Goal: prove static and per-call headers reach the procedure via props.
+
 import (
 	"context"
 	"fmt"

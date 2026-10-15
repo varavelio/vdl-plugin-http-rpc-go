@@ -1,5 +1,8 @@
 package main
 
+// Fixture roundtrip tests a typed procedure roundtrip with preserved annotations.
+// Goal: prove input, output, and operation annotations survive client to server and back.
+
 import (
 	"context"
 	"fmt"

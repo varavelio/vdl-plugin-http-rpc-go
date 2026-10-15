@@ -1,5 +1,8 @@
 package main
 
+// Fixture context-cancellation tests cancelling an in-flight procedure call.
+// Goal: prove the cancelled call returns promptly and the handler observes Done.
+
 import (
 	"context"
 	"fmt"

@@ -1,5 +1,8 @@
 package main
 
+// Fixture middleware-execution tests global, RPC, and procedure middleware order.
+// Goal: prove the execution trace follows global, RPC, procedure, handler.
+
 import (
 	"context"
 	"fmt"

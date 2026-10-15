@@ -1,5 +1,8 @@
 package main
 
+// Fixture multi-rpc tests two RPC services declared in one schema.
+// Goal: prove routing dispatches each service to its own handler.
+
 import (
 	"context"
 	"fmt"

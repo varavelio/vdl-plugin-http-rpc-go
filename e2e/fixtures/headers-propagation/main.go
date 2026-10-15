@@ -1,5 +1,8 @@
 package main
 
+// Fixture headers-propagation tests echoing input data and a trace ID.
+// Goal: prove headers flow from client request to server props and back.
+
 import (
 	"context"
 	"fmt"

@@ -1,5 +1,8 @@
 package main
 
+// Fixture error-handling tests global versus RPC error handlers plus the ok:false envelope.
+// Goal: prove handler precedence and application errors arriving with HTTP 200.
+
 import (
 	"context"
 	"errors"

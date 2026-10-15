@@ -1,5 +1,8 @@
 package main
 
+// Fixture void-ops tests procedures with empty input and output objects.
+// Goal: prove empty structs roundtrip cleanly through the envelope.
+
 import (
 	"context"
 	"fmt"

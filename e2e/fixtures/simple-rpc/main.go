@@ -1,5 +1,8 @@
 package main
 
+// Fixture simple-rpc tests a basic procedure roundtrip plus route helpers.
+// Goal: prove Calculator.add works and RPCRoute and Path expose the lowerFirst route.
+
 import (
 	"context"
 	"fmt"

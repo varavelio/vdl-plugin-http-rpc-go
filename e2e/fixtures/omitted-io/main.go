@@ -1,5 +1,8 @@
 package main
 
+// Fixture omitted-io tests the VPP-2 omitted input and output vectors.
+// Goal: prove empty {} bodies, exact {"ok":true} envelopes, and no-body acceptance.
+
 import (
 	"bytes"
 	"context"

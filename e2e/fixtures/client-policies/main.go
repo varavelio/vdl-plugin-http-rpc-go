@@ -1,5 +1,8 @@
 package main
 
+// Fixture client-policies tests per-procedure retry policies driven by operation annotations.
+// Goal: prove retry deciders observe annotations and failed attempts retry with success.
+
 import (
 	"context"
 	"fmt"

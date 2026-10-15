@@ -1,5 +1,8 @@
 package main
 
+// Fixture headers-errors tests header echo across services plus mapped application errors.
+// Goal: prove headers propagate and failures surface as typed client errors.
+
 import (
 	"context"
 	"encoding/json"

@@ -1,5 +1,8 @@
 package main
 
+// Fixture client-timeout tests the request timeout config against a slow procedure.
+// Goal: prove the call aborts with a timeout error instead of hanging.
+
 import (
 	"context"
 	"fmt"

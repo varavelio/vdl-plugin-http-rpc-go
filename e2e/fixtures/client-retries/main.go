@@ -1,5 +1,8 @@
 package main
 
+// Fixture client-retries tests automatic retries of a flaky procedure failing with 500s.
+// Goal: prove the call succeeds once the server recovers within MaxAttempts.
+
 import (
 	"context"
 	"fmt"

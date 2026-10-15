@@ -1,5 +1,8 @@
 package main
 
+// Fixture interceptors tests the client interceptor chain mutating request context.
+// Goal: prove interceptors run before header providers on every call.
+
 import (
 	"context"
 	"encoding/json"

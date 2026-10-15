@@ -1,5 +1,8 @@
 package main
 
+// Fixture dynamic-headers tests a header provider sending incrementing values.
+// Goal: prove dynamic headers reach the handler on every request.
+
 import (
 	"context"
 	"fmt"
