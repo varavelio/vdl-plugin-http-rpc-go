@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="https://raw.githubusercontent.com/varavelio/vdl/9cb8432f972f986ba91ffa1e4fe82220a8aa373f/assets/png/vdl.png"
+    src="https://cdn.jsdelivr.net/gh/varavelio/vdl@9cb843/assets/png/vdl.png"
     alt="VDL logo"
     width="130"
   />
@@ -36,7 +36,7 @@ const config = {
   version 1
   plugins [
     {
-      src "varavelio/vdl-plugin-go@v0.1.3"
+      src "varavelio/vdl-plugin-go@<version>" // Use a version from plugin releases
       schema "./schema.vdl"
       outDir "./internal/types"
       options {
@@ -44,7 +44,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@v0.1.2"
+      src "varavelio/vdl-plugin-rpc-go@<version>" // Use a version from plugin releases
       schema "./schema.vdl"
       outDir "./internal/client"
       options {
@@ -54,7 +54,7 @@ const config = {
       }
     }
     {
-      src "varavelio/vdl-plugin-rpc-go@v0.1.2"
+      src "varavelio/vdl-plugin-rpc-go@<version>" // Use a version from plugin releases
       schema "./schema.vdl"
       outDir "./internal/server"
       options {
