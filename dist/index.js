@@ -1995,6 +1995,12 @@ var SERVER_RUNTIME = dedent2(
   // ProcedureName returns the name of the procedure (e.g. "CreateUser", "GetPost", etc.)
   func (h *HandlerContext[T, I]) ProcedureName() string { return h.procedure.Name }
 
+  // RPCRoute returns the lowerFirst transport segment for the RPC service.
+  func (h *HandlerContext[T, I]) RPCRoute() string { return h.procedure.RPCRoute }
+
+  // Path returns the VPP-2 transport path for the current procedure.
+  func (h *HandlerContext[T, I]) Path() string { return h.procedure.Path }
+
   // GlobalHandlerFunc is the signature for a global handler function for procedures.
   //
   //   - T: Application-defined context type (props).

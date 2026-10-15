@@ -14,6 +14,12 @@ import (
 func main() {
 	server := rpcserver.NewServer[struct{}]()
 	server.RPCs.Calculator().Procs.Add().Handle(func(c *rpcserver.CalculatorAddHandlerContext[struct{}]) (vdltypes.CalculatorAddOutput, error) {
+		if c.RPCRoute() != "calculator" {
+			panic(fmt.Sprintf("expected RPCRoute calculator, got %q", c.RPCRoute()))
+		}
+		if c.Path() != "/calculator/add" {
+			panic(fmt.Sprintf("expected Path /calculator/add, got %q", c.Path()))
+		}
 		return vdltypes.CalculatorAddOutput{Sum: c.Input.A + c.Input.B}, nil
 	})
 
