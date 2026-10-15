@@ -19,14 +19,20 @@ func main() {
 	for _, operation := range rpcclient.VDLProcedures {
 		if operation.RPCName == "MyService" && operation.Name == "myProc" {
 			found["myProc"] = true
-			if operation.Path() != "/myService/myProc" {
-				fail("VDLProcedures Path()", "/myService/myProc", operation.Path())
+			if operation.RPCRoute != "myService" {
+				fail("VDLProcedures RPCRoute", "myService", operation.RPCRoute)
+			}
+			if operation.Path != "/myService/myProc" {
+				fail("VDLProcedures Path", "/myService/myProc", operation.Path)
 			}
 		}
 		if operation.RPCName == "MyService" && operation.Name == "myOtherProc" {
 			found["myOtherProc"] = true
-			if operation.Path() != "/myService/myOtherProc" {
-				fail("VDLProcedures Path()", "/myService/myOtherProc", operation.Path())
+			if operation.RPCRoute != "myService" {
+				fail("VDLProcedures RPCRoute", "myService", operation.RPCRoute)
+			}
+			if operation.Path != "/myService/myOtherProc" {
+				fail("VDLProcedures Path", "/myService/myOtherProc", operation.Path)
 			}
 		}
 	}

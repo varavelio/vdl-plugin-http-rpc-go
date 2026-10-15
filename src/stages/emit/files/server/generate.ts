@@ -54,7 +54,6 @@ function renderServerImports(context: GeneratorContext): string {
     g.line('"io"');
     g.line('"net/http"');
     g.line('"sync"');
-    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);

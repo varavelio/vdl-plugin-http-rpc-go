@@ -21,25 +21,14 @@ export function renderCoreRuntime(): string {
     type OperationDefinition struct {
       // RPCName is the VDL service name that owns the operation.
       RPCName string
+      // RPCRoute is the lowerFirst transport segment precomputed by the generator.
+      RPCRoute string
       // Name is the VDL field name of the operation.
       Name string
+      // Path is the VPP-2 transport path precomputed by the generator.
+      Path string
       // Annotations contains every non-marker annotation declared on the operation.
       Annotations []Annotation
-    }
-
-    // Path returns the transport path used by the generated client and server.
-    func (o OperationDefinition) Path() string {
-      return "/" + lowerFirst(o.RPCName) + "/" + o.Name
-    }
-
-    // lowerFirst lowercases the first Unicode letter and leaves the rest untouched.
-    func lowerFirst(s string) string {
-      if s == "" {
-        return s
-      }
-      r := []rune(s)
-      r[0] = unicode.ToLower(r[0])
-      return string(r)
     }
 
     // cloneAnnotations returns a shallow copy of the given annotations slice.

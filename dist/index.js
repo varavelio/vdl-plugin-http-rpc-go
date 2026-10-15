@@ -680,7 +680,11 @@ function renderOperationCatalog(constName, operations) {
     g2.line("{");
     g2.block(() => {
       g2.line(`RPCName: ${renderGoString(operation.rpcName)},`);
+      g2.line(`RPCRoute: ${renderGoString(lowerFirst(operation.rpcName))},`);
       g2.line(`Name: ${renderGoString(operation.name)},`);
+      g2.line(
+        `Path: ${renderGoString(`/${lowerFirst(operation.rpcName)}/${operation.name}`)},`
+      );
       g2.line(
         `Annotations: ${renderAnnotationsLiteral(operation.annotations)},`
       );
@@ -765,25 +769,14 @@ function renderCoreRuntime() {
     type OperationDefinition struct {
       // RPCName is the VDL service name that owns the operation.
       RPCName string
+      // RPCRoute is the lowerFirst transport segment precomputed by the generator.
+      RPCRoute string
       // Name is the VDL field name of the operation.
       Name string
+      // Path is the VPP-2 transport path precomputed by the generator.
+      Path string
       // Annotations contains every non-marker annotation declared on the operation.
       Annotations []Annotation
-    }
-
-    // Path returns the transport path used by the generated client and server.
-    func (o OperationDefinition) Path() string {
-      return "/" + lowerFirst(o.RPCName) + "/" + o.Name
-    }
-
-    // lowerFirst lowercases the first Unicode letter and leaves the rest untouched.
-    func lowerFirst(s string) string {
-      if s == "" {
-        return s
-      }
-      r := []rune(s)
-      r[0] = unicode.ToLower(r[0])
-      return string(r)
     }
 
     // cloneAnnotations returns a shallow copy of the given annotations slice.
@@ -1283,7 +1276,7 @@ var CLIENT_RUNTIME = dedent2(
 				}, nil
 			}
 
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, lowerFirst(req.RPCName), req.OperationName)
+			url := c.baseURL + operation.Path
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -1604,7 +1597,6 @@ function renderClientImports(context) {
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
-    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);
@@ -2296,9 +2288,11 @@ var SERVER_RUNTIME = dedent2(
       Context: ctx,
       Annotations: cloneAnnotations(operation.Annotations),
       operation: OperationDefinition{
-        RPCName:     operation.RPCName,
-        Name:        operation.Name,
-        Annotations: cloneAnnotations(operation.Annotations),
+        RPCName:      operation.RPCName,
+        RPCRoute:     operation.RPCRoute,
+        Name:         operation.Name,
+        Path:         operation.Path,
+        Annotations:  cloneAnnotations(operation.Annotations),
       },
     }
 
@@ -2325,11 +2319,10 @@ var SERVER_RUNTIME = dedent2(
     s.handlersMu.RLock()
     defer s.handlersMu.RUnlock()
     for canonicalRPC, operations := range s.operationDefs {
-      if canonicalRPC != rpcName && lowerFirst(canonicalRPC) != rpcName {
-        continue
-      }
       if operation, ok := operations[operationName]; ok {
-        return operation, canonicalRPC, operationName, true
+        if canonicalRPC == rpcName || operation.RPCRoute == rpcName {
+          return operation, canonicalRPC, operationName, true
+        }
       }
     }
     return OperationDefinition{}, "", "", false
@@ -2531,7 +2524,6 @@ function renderServerImports(context) {
     g.line('"io"');
     g.line('"net/http"');
     g.line('"sync"');
-    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);

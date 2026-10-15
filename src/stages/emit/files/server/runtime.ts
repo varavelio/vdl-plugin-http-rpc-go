@@ -412,9 +412,11 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       Context: ctx,
       Annotations: cloneAnnotations(operation.Annotations),
       operation: OperationDefinition{
-        RPCName:     operation.RPCName,
-        Name:        operation.Name,
-        Annotations: cloneAnnotations(operation.Annotations),
+        RPCName:      operation.RPCName,
+        RPCRoute:     operation.RPCRoute,
+        Name:         operation.Name,
+        Path:         operation.Path,
+        Annotations:  cloneAnnotations(operation.Annotations),
       },
     }
 
@@ -441,11 +443,10 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     s.handlersMu.RLock()
     defer s.handlersMu.RUnlock()
     for canonicalRPC, operations := range s.operationDefs {
-      if canonicalRPC != rpcName && lowerFirst(canonicalRPC) != rpcName {
-        continue
-      }
       if operation, ok := operations[operationName]; ok {
-        return operation, canonicalRPC, operationName, true
+        if canonicalRPC == rpcName || operation.RPCRoute == rpcName {
+          return operation, canonicalRPC, operationName, true
+        }
       }
     }
     return OperationDefinition{}, "", "", false

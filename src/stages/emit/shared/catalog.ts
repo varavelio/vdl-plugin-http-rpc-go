@@ -49,7 +49,11 @@ function renderOperationCatalog(
     g.line("{");
     g.block(() => {
       g.line(`RPCName: ${renderGoString(operation.rpcName)},`);
+      g.line(`RPCRoute: ${renderGoString(lowerFirst(operation.rpcName))},`);
       g.line(`Name: ${renderGoString(operation.name)},`);
+      g.line(
+        `Path: ${renderGoString(`/${lowerFirst(operation.rpcName)}/${operation.name}`)},`,
+      );
       g.line(
         `Annotations: ${renderAnnotationsLiteral(operation.annotations)},`,
       );

@@ -58,7 +58,6 @@ function renderClientImports(context: GeneratorContext): string {
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
-    g.line('"unicode"');
     if (needsTypesImport && hasExternalTypesImport) {
       g.break();
       g.line(`vdltypes ${renderGoString(context.options.typesImport)}`);

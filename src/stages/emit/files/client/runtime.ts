@@ -323,7 +323,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 				}, nil
 			}
 
-			url := fmt.Sprintf("%s/%s/%s", c.baseURL, lowerFirst(req.RPCName), req.OperationName)
+			url := c.baseURL + operation.Path
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
