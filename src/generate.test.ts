@@ -256,6 +256,7 @@ describe("generate", () => {
       "func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder",
     );
     expect(client.files?.[0]?.content).toContain("response body too large");
+    expect(client.files?.[0]?.content).toContain("if response == nil {");
     expect(client.files?.[0]?.content).toContain(
       "func cloneAnnotationArgument(argument any) any",
     );
@@ -296,6 +297,7 @@ describe("generate", () => {
       "func (s *Server[T]) HTTPHandler(propsFn PropsFunc[T]) http.Handler",
     );
     expect(output.files?.[0]?.content).toContain("SetMaxRequestBodyBytes");
+    expect(output.files?.[0]?.content).toContain("if body == nil {");
     expect(output.files?.[0]?.content).toContain(
       'return Error{Message: "Internal error"}',
     );

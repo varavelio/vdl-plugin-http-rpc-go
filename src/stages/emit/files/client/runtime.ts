@@ -437,6 +437,10 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			wrapped := fmt.Errorf("http request failed: %w", err)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, true, 0, wrapped
 		}
+		if response == nil {
+			wrapped := fmt.Errorf("http request failed: empty response")
+			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, true, 0, wrapped
+		}
 		defer response.Body.Close()
 
 		if response.StatusCode >= 500 {

@@ -401,7 +401,11 @@ export const SERVER_RUNTIME = dedent(/* go */ `
     // An empty body stays valid empty input per VPP-2. Oversized bodies fail
     // closed with an ok:false envelope before any handler runs.
     maxBody := s.maxRequestBodyBytes.Load()
-    raw, readErr := io.ReadAll(io.LimitReader(httpAdapter.RequestBody(), maxBody+1))
+    body := httpAdapter.RequestBody()
+    if body == nil {
+      body = bytes.NewReader(nil)
+    }
+    raw, readErr := io.ReadAll(io.LimitReader(body, maxBody+1))
     if readErr != nil {
       res := Response[any]{
         Ok:    false,

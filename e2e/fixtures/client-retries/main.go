@@ -1,7 +1,8 @@
 package main
 
 // Fixture client-retries tests automatic retries of a flaky procedure failing with 500s.
-// Goal: prove the call succeeds once the server recovers within MaxAttempts.
+// Goal: prove the call succeeds once the server recovers within MaxAttempts,
+// and empty transport responses surface as errors instead of panics.
 
 import (
 	"context"
@@ -43,6 +44,12 @@ func main() {
 
 	client := rpcclient.NewClient(ts.URL + "/rpc").Build()
 
+	// A transport that answers nothing surfaces as an error, never a panic.
+	nilClient := rpcclient.NewClient(ts.URL + "/rpc").WithHTTPClient(&http.Client{Transport: nilTransport{}}).Build()
+	if _, err := nilClient.RPCs.Service().Procs.Flaky().Execute(context.Background(), vdltypes.ServiceFlakyInput{}); err == nil {
+		panic("expected error for empty transport response")
+	}
+
 	// MaxAttempts below 1 clamps to a single attempt instead of skipping the call.
 	base := attempts.Load()
 	if _, err := client.RPCs.Service().Procs.Flaky().WithRetryConfig(rpcclient.RetryConfig{}).Execute(context.Background(), vdltypes.ServiceFlakyInput{}); err == nil {
@@ -69,4 +76,10 @@ func main() {
 	}
 
 	fmt.Println("client retries ok")
+}
+
+type nilTransport struct{}
+
+func (nilTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, nil
 }

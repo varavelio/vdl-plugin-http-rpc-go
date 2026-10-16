@@ -1418,6 +1418,10 @@ var CLIENT_RUNTIME = dedent2(
 			wrapped := fmt.Errorf("http request failed: %w", err)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, true, 0, wrapped
 		}
+		if response == nil {
+			wrapped := fmt.Errorf("http request failed: empty response")
+			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, true, 0, wrapped
+		}
 		defer response.Body.Close()
 
 		if response.StatusCode >= 500 {
@@ -2349,7 +2353,11 @@ var SERVER_RUNTIME = dedent2(
     // An empty body stays valid empty input per VPP-2. Oversized bodies fail
     // closed with an ok:false envelope before any handler runs.
     maxBody := s.maxRequestBodyBytes.Load()
-    raw, readErr := io.ReadAll(io.LimitReader(httpAdapter.RequestBody(), maxBody+1))
+    body := httpAdapter.RequestBody()
+    if body == nil {
+      body = bytes.NewReader(nil)
+    }
+    raw, readErr := io.ReadAll(io.LimitReader(body, maxBody+1))
     if readErr != nil {
       res := Response[any]{
         Ok:    false,
