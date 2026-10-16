@@ -48,6 +48,12 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   //
   // Returns a HTTPAdapter implementation ready for use with VDL server.
   func NewNetHTTPAdapter(w http.ResponseWriter, r *http.Request) HTTPAdapter {
+    if w == nil {
+      panic("vdl rpc: NewNetHTTPAdapter requires a non-nil ResponseWriter")
+    }
+    if r == nil {
+      panic("vdl rpc: NewNetHTTPAdapter requires a non-nil Request")
+    }
     return &NetHTTPAdapter{
       responseWriter: w,
       request:        r,

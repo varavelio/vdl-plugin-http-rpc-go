@@ -299,6 +299,9 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain("SetMaxRequestBodyBytes");
     expect(output.files?.[0]?.content).toContain("if body == nil {");
     expect(output.files?.[0]?.content).toContain(
+      "NewNetHTTPAdapter requires a non-nil",
+    );
+    expect(output.files?.[0]?.content).toContain(
       'return Error{Message: "Internal error"}',
     );
     expect(output.files?.[0]?.content).toContain("unexpected input type %T");
