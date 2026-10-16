@@ -53,6 +53,7 @@ function renderServerImports(context: GeneratorContext): string {
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
+    g.line('"slices"');
     g.line('"strings"');
     g.line('"sync"');
     g.line('"sync/atomic"');

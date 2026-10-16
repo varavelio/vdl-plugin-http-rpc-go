@@ -1262,8 +1262,7 @@ var CLIENT_RUNTIME = dedent2(
 	// executeChain builds the interceptor chain and executes the final invoker.
 	func (c *internalClient) executeChain(ctx context.Context, req RequestInfo, final Invoker) (Response[json.RawMessage], error) {
 		chain := final
-		for index := len(c.interceptors) - 1; index >= 0; index-- {
-			middleware := c.interceptors[index]
+		for _, middleware := range slices.Backward(c.interceptors) {
 			next := chain
 			chain = func(callCtx context.Context, callReq RequestInfo) (Response[json.RawMessage], error) {
 				return middleware(callCtx, callReq, next)
@@ -1670,6 +1669,7 @@ function renderClientImports(context) {
     g.line('"io"');
     g.line('"math/rand"');
     g.line('"net/http"');
+    g.line('"slices"');
     g.line('"strings"');
     g.line('"sync"');
     g.line('"time"');
@@ -2128,8 +2128,14 @@ var SERVER_RUNTIME = dedent2(
 	//   - T: Application-defined context type (props).
 	type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
 
+	// -----------------------------------------------------------------------------
 	// Internal Server Implementation
 	// -----------------------------------------------------------------------------
+
+	// defaultMaxRequestBodyBytes caps request bodies at 4 MiB unless tuned
+	// with SetMaxRequestBodyBytes. It bounds memory per request so a hostile
+	// client cannot exhaust the server with a huge payload.
+	const defaultMaxRequestBodyBytes = 4 << 20
 
 	// internalServer manages RPC request handling and middleware execution for procedures. It maintains handler registrations, middleware
 	// chains, and coordinates the complete request lifecycle.
@@ -2139,11 +2145,6 @@ var SERVER_RUNTIME = dedent2(
 	// request processing pipeline.
 	//
 	//   - T: Application-defined context type (props).
-	// defaultMaxRequestBodyBytes caps request bodies at 4 MiB unless tuned
-	// with SetMaxRequestBodyBytes. It bounds memory per request so a hostile
-	// client cannot exhaust the server with a huge payload.
-	const defaultMaxRequestBodyBytes = 4 << 20
-
 	type internalServer[T any] struct {
 		// handlersMu protects all handler maps and middleware slices from concurrent access
 		handlersMu sync.RWMutex
@@ -2159,7 +2160,6 @@ var SERVER_RUNTIME = dedent2(
 		// maxRequestBodyBytes caps request body bytes per call. Atomic because
 		// handleRequest reads it on every request without holding handlersMu.
 		maxRequestBodyBytes atomic.Int64
-
 
 		// globalMiddlewares contains middlewares that run for every procedure request
 		globalMiddlewares []GlobalMiddlewareFunc[T]
@@ -2491,8 +2491,8 @@ var SERVER_RUNTIME = dedent2(
 		final := baseHandler
 		if len(mws) > 0 {
 			mwChain := append([]ProcMiddlewareFunc[T, any, any](nil), mws...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				final = mwChain[i](final)
+			for _, m := range slices.Backward(mwChain) {
+				final = m(final)
 			}
 		}
 
@@ -2500,16 +2500,16 @@ var SERVER_RUNTIME = dedent2(
 		exec := func(c *HandlerContext[T, any]) (any, error) { return final(c) }
 		if len(rpcMws) > 0 {
 			mwChain := append([]GlobalMiddlewareFunc[T](nil), rpcMws...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				exec = mwChain[i](exec)
+			for _, m := range slices.Backward(mwChain) {
+				exec = m(exec)
 			}
 		}
 
 		// Wrap the chain with global middlewares (executed before RPC-level ones)
 		if len(s.globalMiddlewares) > 0 {
 			mwChain := append([]GlobalMiddlewareFunc[T](nil), s.globalMiddlewares...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				exec = mwChain[i](exec)
+			for _, m := range slices.Backward(mwChain) {
+				exec = m(exec)
 			}
 		}
 
@@ -2703,6 +2703,7 @@ function renderServerImports(context) {
     g.line('"fmt"');
     g.line('"io"');
     g.line('"net/http"');
+    g.line('"slices"');
     g.line('"strings"');
     g.line('"sync"');
     g.line('"sync/atomic"');

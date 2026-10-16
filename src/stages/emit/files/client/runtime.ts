@@ -281,8 +281,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// executeChain builds the interceptor chain and executes the final invoker.
 	func (c *internalClient) executeChain(ctx context.Context, req RequestInfo, final Invoker) (Response[json.RawMessage], error) {
 		chain := final
-		for index := len(c.interceptors) - 1; index >= 0; index-- {
-			middleware := c.interceptors[index]
+		for _, middleware := range slices.Backward(c.interceptors) {
 			next := chain
 			chain = func(callCtx context.Context, callReq RequestInfo) (Response[json.RawMessage], error) {
 				return middleware(callCtx, callReq, next)

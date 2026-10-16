@@ -176,8 +176,14 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	//   - T: Application-defined context type (props).
 	type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
 
+	// -----------------------------------------------------------------------------
 	// Internal Server Implementation
 	// -----------------------------------------------------------------------------
+
+	// defaultMaxRequestBodyBytes caps request bodies at 4 MiB unless tuned
+	// with SetMaxRequestBodyBytes. It bounds memory per request so a hostile
+	// client cannot exhaust the server with a huge payload.
+	const defaultMaxRequestBodyBytes = 4 << 20
 
 	// internalServer manages RPC request handling and middleware execution for procedures. It maintains handler registrations, middleware
 	// chains, and coordinates the complete request lifecycle.
@@ -187,11 +193,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	// request processing pipeline.
 	//
 	//   - T: Application-defined context type (props).
-	// defaultMaxRequestBodyBytes caps request bodies at 4 MiB unless tuned
-	// with SetMaxRequestBodyBytes. It bounds memory per request so a hostile
-	// client cannot exhaust the server with a huge payload.
-	const defaultMaxRequestBodyBytes = 4 << 20
-
 	type internalServer[T any] struct {
 		// handlersMu protects all handler maps and middleware slices from concurrent access
 		handlersMu sync.RWMutex
@@ -207,7 +208,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 		// maxRequestBodyBytes caps request body bytes per call. Atomic because
 		// handleRequest reads it on every request without holding handlersMu.
 		maxRequestBodyBytes atomic.Int64
-
 
 		// globalMiddlewares contains middlewares that run for every procedure request
 		globalMiddlewares []GlobalMiddlewareFunc[T]
@@ -539,8 +539,8 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 		final := baseHandler
 		if len(mws) > 0 {
 			mwChain := append([]ProcMiddlewareFunc[T, any, any](nil), mws...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				final = mwChain[i](final)
+			for _, m := range slices.Backward(mwChain) {
+				final = m(final)
 			}
 		}
 
@@ -548,16 +548,16 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 		exec := func(c *HandlerContext[T, any]) (any, error) { return final(c) }
 		if len(rpcMws) > 0 {
 			mwChain := append([]GlobalMiddlewareFunc[T](nil), rpcMws...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				exec = mwChain[i](exec)
+			for _, m := range slices.Backward(mwChain) {
+				exec = m(exec)
 			}
 		}
 
 		// Wrap the chain with global middlewares (executed before RPC-level ones)
 		if len(s.globalMiddlewares) > 0 {
 			mwChain := append([]GlobalMiddlewareFunc[T](nil), s.globalMiddlewares...)
-			for i := len(mwChain) - 1; i >= 0; i-- {
-				exec = mwChain[i](exec)
+			for _, m := range slices.Backward(mwChain) {
+				exec = m(exec)
 			}
 		}
 
