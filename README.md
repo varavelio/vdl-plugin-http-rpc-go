@@ -196,6 +196,7 @@ The generated code fails closed by default:
 - A body must hold exactly one JSON value; trailing garbage is rejected.
 - Inputs are validated against their declared shape before handlers run.
 - Annotation data is copied per request, so middleware cannot leak state across requests.
+- The default error handler answers `Internal error`: framework prefixes, type names, and decoder details never reach the client. Custom error handlers expose exactly what they return, by your choice.
 
 TLS, rate limiting, and the URLs you trust remain your responsibility, as does whatever your handlers do.
 

@@ -66,6 +66,9 @@ func main() {
 
 	// Trailing garbage after the JSON value is rejected as invalid input.
 	expectBodyRaw(ts.URL+"/rpc/service/echo", []byte(`{"data":"hi"} junk`), `{"ok":false,`)
+
+	// Default error path sanitizes internals: wrong types fail without leaking.
+	expectBodyRaw(ts.URL+"/rpc/service/echo", []byte(`{"data":123}`), `{"ok":false,"error":{"message":"Internal error"}}`)
 	if echoed {
 		panic("handler ran for trailing-garbage body")
 	}

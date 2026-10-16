@@ -31,6 +31,13 @@ not match where it should) are returned as errors, never as silent zero
 values. Responses that cannot be encoded fall back to a safe error
 envelope.
 
+**Error privacy by default.** When a handler fails and you have not set a
+custom error handler, the client receives a plain `Internal error`.
+Framework prefixes, type names, and decoder details never leave the
+server. Custom error handlers expose exactly what they return: if you
+prefix or forward the raw error there, that is your choice, made on
+purpose.
+
 **Concurrency.** Handler tables are protected with read-write locks,
 tunable limits use atomics, and the fixtures run clean under the race
 detector.

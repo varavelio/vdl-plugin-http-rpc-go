@@ -2292,9 +2292,11 @@ var SERVER_RUNTIME = dedent2(
       return s.globalErrorHandler
     }
 
-    // Default: Passthrough
+    // Default: sanitized. Internal details (framework prefixes, type names,
+    // decoder offsets) never reach the client. Custom handlers receive the
+    // raw error and decide what to expose themselves.
     return func(c *HandlerContext[T, any], err error) Error {
-      return ToError(err)
+      return Error{Message: "Internal error"}
     }
   }
 
