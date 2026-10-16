@@ -151,8 +151,8 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	//   - O: Output payload type for the procedure.
 	type ProcMiddlewareFunc[T any, I any, O any] func(next ProcHandlerFunc[T, I, O]) ProcHandlerFunc[T, I, O]
 
-	// DeserializerFunc function convert raw JSON input into typed input prior to handler execution.
-	type DeserializerFunc func(raw json.RawMessage) (any, error)
+	// deserializerFunc converts raw JSON input into typed input prior to handler execution.
+	type deserializerFunc func(raw json.RawMessage) (any, error)
 
 	// ErrorHandlerFunc transforms an internal error into a public error envelope.
 	//
@@ -208,7 +208,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 
 		// procDeserializers contains per-procedure input deserializers
 		// Map format: rpcName -> procName -> deserializer
-		procDeserializers map[string]map[string]DeserializerFunc
+		procDeserializers map[string]map[string]deserializerFunc
 
 		// globalErrorHandler is the global error handler
 		globalErrorHandler ErrorHandlerFunc[T]
@@ -237,7 +237,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 		procHandlers := make(map[string]map[string]ProcHandlerFunc[T, any, any])
 		rpcMiddlewares := make(map[string][]GlobalMiddlewareFunc[T])
 		procMiddlewares := make(map[string]map[string][]ProcMiddlewareFunc[T, any, any])
-		procDeserializers := make(map[string]map[string]DeserializerFunc)
+		procDeserializers := make(map[string]map[string]deserializerFunc)
 		rpcErrorHandlers := make(map[string]ErrorHandlerFunc[T])
 
 		// Helper to ensure RPC map existence
@@ -246,7 +246,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 				procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
 				procHandlers[rpcName] = make(map[string]ProcHandlerFunc[T, any, any])
 				procMiddlewares[rpcName] = make(map[string][]ProcMiddlewareFunc[T, any, any])
-				procDeserializers[rpcName] = make(map[string]DeserializerFunc)
+				procDeserializers[rpcName] = make(map[string]deserializerFunc)
 			}
 		}
 
@@ -352,7 +352,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 		rpcName string,
 		procName string,
 		handler ProcHandlerFunc[T, any, any],
-		deserializer DeserializerFunc,
+		deserializer deserializerFunc,
 	) *internalServer[T] {
 		s.handlersMu.Lock()
 		defer s.handlersMu.Unlock()
