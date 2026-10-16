@@ -168,7 +168,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	// DeserializerFunc function convert raw JSON input into typed input prior to handler execution.
 	type DeserializerFunc func(raw json.RawMessage) (any, error)
 
-	// ErrorHandlerFunc transforms an internal Go error into a public VDL Error.
+	// ErrorHandlerFunc transforms an internal error into a public error envelope.
 	//
 	// The handler receives the full request context, enabling structured logging
 	// with access to Props, RPC Name, Procedure Name, and other metadata.

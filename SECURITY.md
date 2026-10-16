@@ -38,6 +38,11 @@ server. Custom error handlers expose exactly what they return: if you
 prefix or forward the raw error there, that is your choice, made on
 purpose.
 
+Even error encoding failures stay generic. If an error payload cannot be
+encoded (for example, unencodable details from a custom handler), the
+client receives the same plain `Internal error` envelope instead of
+framework text.
+
 **Concurrency.** Handler tables are protected with read-write locks,
 tunable limits use atomics, and the fixtures run clean under the race
 detector.

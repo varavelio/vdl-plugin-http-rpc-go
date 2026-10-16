@@ -470,7 +470,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 		rawBody, readErr := io.ReadAll(io.LimitReader(response.Body, c.maxResponseBodyBytes+1))
 		if readErr != nil {
-			wrapped := fmt.Errorf("failed to read VDL response: %w", readErr)
+			wrapped := fmt.Errorf("failed to read response: %w", readErr)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 		if int64(len(rawBody)) > c.maxResponseBodyBytes {
@@ -478,7 +478,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 		if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&raw); err != nil {
-			wrapped := fmt.Errorf("failed to decode VDL response: %w", err)
+			wrapped := fmt.Errorf("failed to decode response: %w", err)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 

@@ -299,6 +299,11 @@ describe("generate", () => {
     expect(output.files?.[0]?.content).toContain("SetMaxRequestBodyBytes");
     expect(output.files?.[0]?.content).toContain("if body == nil {");
     expect(output.files?.[0]?.content).toContain(
+      '{"ok":false,"error":{"message":"Internal error"}}',
+    );
+    expect(output.files?.[0]?.content).not.toContain("failed to marshal");
+    expect(output.files?.[0]?.content).not.toContain("VDL Error");
+    expect(output.files?.[0]?.content).toContain(
       "NewNetHTTPAdapter requires a non-nil",
     );
     expect(output.files?.[0]?.content).toContain(

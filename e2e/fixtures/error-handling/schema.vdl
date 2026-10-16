@@ -15,3 +15,11 @@ type Users {
     output {}
   }
 }
+
+@httpRpc
+type Poison {
+  @proc
+  pour {
+    output {}
+  }
+}

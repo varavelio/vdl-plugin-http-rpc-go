@@ -832,11 +832,12 @@ function renderCoreRuntime() {
 			return json.NewEncoder(w).Encode(r)
 		}
 
-		// String returns the response as a JSON string.
+		// String returns the response as a JSON string. When encoding fails,
+		// it falls back to a generic envelope so internals never reach the client.
 		func (r Response[T]) String() string {
 			encoded, err := json.Marshal(r)
 			if err != nil {
-				return fmt.Sprintf(\`{"ok":false,"error":{"message":%q}}\`, "failed to marshal response: "+err.Error())
+				return \`{"ok":false,"error":{"message":"Internal error"}}\`
 			}
 			return string(encoded)
 		}
@@ -946,10 +947,7 @@ function renderCoreRuntime() {
 		func (e Error) ToJSON() string {
 			b, err := json.Marshal(e)
 			if err != nil {
-				return fmt.Sprintf(
-					\`{"message":%q,"details":{"message":%q}}\`,
-					"failed to marshal VDL Error: "+err.Error(), e.Message,
-				)
+				return \`{"message":"Internal error"}\`
 			}
 			return string(b)
 		}
@@ -1451,7 +1449,7 @@ var CLIENT_RUNTIME = dedent2(
 
 		rawBody, readErr := io.ReadAll(io.LimitReader(response.Body, c.maxResponseBodyBytes+1))
 		if readErr != nil {
-			wrapped := fmt.Errorf("failed to read VDL response: %w", readErr)
+			wrapped := fmt.Errorf("failed to read response: %w", readErr)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 		if int64(len(rawBody)) > c.maxResponseBodyBytes {
@@ -1459,7 +1457,7 @@ var CLIENT_RUNTIME = dedent2(
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 		if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&raw); err != nil {
-			wrapped := fmt.Errorf("failed to decode VDL response: %w", err)
+			wrapped := fmt.Errorf("failed to decode response: %w", err)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
 
@@ -2120,7 +2118,7 @@ var SERVER_RUNTIME = dedent2(
 	// DeserializerFunc function convert raw JSON input into typed input prior to handler execution.
 	type DeserializerFunc func(raw json.RawMessage) (any, error)
 
-	// ErrorHandlerFunc transforms an internal Go error into a public VDL Error.
+	// ErrorHandlerFunc transforms an internal error into a public error envelope.
 	//
 	// The handler receives the full request context, enabling structured logging
 	// with access to Props, RPC Name, Procedure Name, and other metadata.
