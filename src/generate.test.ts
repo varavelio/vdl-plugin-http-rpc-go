@@ -252,6 +252,13 @@ describe("generate", () => {
     expect(client.files?.[0]?.content).toContain(
       "func (r RequestInfo) InputAs[O any]() (O, bool)",
     );
+    expect(client.files?.[0]?.content).toContain(
+      "func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder",
+    );
+    expect(client.files?.[0]?.content).toContain("response body too large");
+    expect(client.files?.[0]?.content).toContain(
+      "func cloneAnnotationArgument(argument any) any",
+    );
     expect(server.errors).toBeUndefined();
     expect(server.files?.[0]?.content).toContain(
       "func (h *HandlerContext[T, I]) InputAs[O any]() (O, bool)",

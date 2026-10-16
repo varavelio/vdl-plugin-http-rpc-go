@@ -11,4 +11,11 @@ type Service {
       user string
     }
   }
+
+  @proc
+  blob {
+    output {
+      data string
+    }
+  }
 }

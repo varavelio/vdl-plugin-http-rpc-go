@@ -1,10 +1,12 @@
 package main
 
 // Fixture client-policies tests per-procedure retry policies driven by operation annotations.
-// Goal: prove retry deciders observe annotations and failed attempts retry with success.
+// Goal: prove retry deciders observe annotations, attempts retry with success,
+// and annotation payloads stay isolated across attempts.
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -52,7 +54,18 @@ func main() {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	client := rpcclient.NewClient(ts.URL + "/rpc").Build()
+	var sawStaleProbe atomic.Bool
+	client := rpcclient.NewClient(ts.URL + "/rpc").WithInterceptor(func(ctx context.Context, req rpcclient.RequestInfo, next rpcclient.Invoker) (rpcclient.Response[json.RawMessage], error) {
+		if req.ProcedureName == "create" {
+			sawStaleProbe.Store(sawStaleProbe.Load() || hasAnnotationKey(req.Annotations, "probe"))
+			for _, annotation := range req.Annotations {
+				if argument, ok := annotation.Argument.(map[string]any); ok {
+					argument["probe"] = "tampered"
+				}
+			}
+		}
+		return next(ctx, req)
+	}).Build()
 
 	var sawHighAnnotation atomic.Bool
 	retryConf := rpcclient.RetryConfig{
@@ -76,6 +89,14 @@ func main() {
 	}
 	if !sawHighAnnotation.Load() {
 		panic("retry decider did not observe the retryable annotation")
+	}
+
+	// A second call must not observe the previous call payload mutation.
+	if _, err := client.RPCs.Jobs().Procs.Create().WithRetryConfig(retryConf).Execute(context.Background(), vdltypes.JobsCreateInput{Name: "again"}); err != nil {
+		panic(err)
+	}
+	if sawStaleProbe.Load() {
+		panic("annotation payload leaked across requests")
 	}
 
 	var sawLowAnnotation atomic.Bool
@@ -103,6 +124,18 @@ func main() {
 	}
 
 	fmt.Println("client policies ok")
+}
+
+func hasAnnotationKey(annotations []rpcclient.Annotation, key string) bool {
+	for _, annotation := range annotations {
+		if argument, ok := annotation.Argument.(map[string]any); ok {
+			if _, found := argument[key]; found {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func matchAnnotation(annotations []rpcclient.Annotation, name string, key string, expected string) bool {

@@ -228,6 +228,11 @@ Generated servers fail closed by default:
   envelope before any middleware or handler runs, on every wiring style.
 - Bodies must hold exactly one JSON value; trailing garbage is rejected as an
   invalid body.
+- Response bodies cap at 4 MiB per call on the client
+  (`Client.WithMaxResponseBodyBytes` tunes it, `<= 0` restores the default),
+  so a hostile server cannot exhaust client memory before decoding.
+- Annotation payloads deep copy per request, so middleware cannot mutate
+  shared state across requests.
 - Input shapes validate through the generated `vdl-plugin-go` types before
   handlers run, and internal type mismatches return errors instead of silent
   zero values.

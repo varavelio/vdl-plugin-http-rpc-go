@@ -104,6 +104,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		rpcRetryConf map[string]*RetryConfig
 		rpcTimeoutConf map[string]*TimeoutConfig
 
+		// Immutable after construction.
+		maxResponseBodyBytes int64
+
 		// mu protects concurrent access to the configuration maps
 		mu sync.RWMutex
 	}
@@ -158,6 +161,22 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		}
 	}
 
+	// defaultMaxResponseBodyBytes caps response bodies at 4 MiB unless tuned
+	// with WithMaxResponseBodyBytes. It bounds memory per call so a hostile
+	// server cannot exhaust the client with a huge payload.
+	const defaultMaxResponseBodyBytes = 4 << 20
+
+	// withMaxResponseBodyBytes caps response body bytes accepted per call.
+	// Values <= 0 restore the 4 MiB default.
+	func withMaxResponseBodyBytes(n int64) internalClientOption {
+		return func(client *internalClient) {
+			if n <= 0 {
+				n = defaultMaxResponseBodyBytes
+			}
+			client.maxResponseBodyBytes = n
+		}
+	}
+
 	// newInternalClient creates a new internalClient capable of talking to the VDL server.
 	//
 	// The caller can optionally pass functional options to customize transport
@@ -180,6 +199,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		client := &internalClient{
 			baseURL: strings.TrimRight(baseURL, "/"),
 			httpClient: http.DefaultClient,
+			maxResponseBodyBytes: defaultMaxResponseBodyBytes,
 			procedureDefs: procedureDefs,
 			headerProviders: []HeaderProvider{},
 			interceptors: []Interceptor{},
@@ -445,7 +465,16 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			Error Error \`json:"error"\`
 		}
 
-		if err := json.NewDecoder(response.Body).Decode(&raw); err != nil {
+		rawBody, readErr := io.ReadAll(io.LimitReader(response.Body, c.maxResponseBodyBytes+1))
+		if readErr != nil {
+			wrapped := fmt.Errorf("failed to read VDL response: %w", readErr)
+			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
+		}
+		if int64(len(rawBody)) > c.maxResponseBodyBytes {
+			wrapped := fmt.Errorf("response body too large")
+			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
+		}
+		if err := json.NewDecoder(bytes.NewReader(rawBody)).Decode(&raw); err != nil {
 			wrapped := fmt.Errorf("failed to decode VDL response: %w", err)
 			return Response[json.RawMessage]{Ok: false, Error: ToError(wrapped)}, false, response.StatusCode, wrapped
 		}
@@ -587,6 +616,14 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// WithTimeoutConfig sets the default timeout configuration for procedures.
 	func (b *clientBuilder) WithTimeoutConfig(conf TimeoutConfig) *clientBuilder {
 		b.opts = append(b.opts, withGlobalTimeoutConfig(conf))
+		return b
+	}
+
+	// WithMaxResponseBodyBytes caps response body bytes accepted per call.
+	// Responses beyond the cap fail as transport errors before decoding.
+	// Values <= 0 restore the 4 MiB default.
+	func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder {
+		b.opts = append(b.opts, withMaxResponseBodyBytes(n))
 		return b
 	}
 

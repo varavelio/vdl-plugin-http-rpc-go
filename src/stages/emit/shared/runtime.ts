@@ -37,8 +37,36 @@ export function renderCoreRuntime(): string {
         return nil
       }
       clone := make([]Annotation, len(annotations))
-      copy(clone, annotations)
+      for index, annotation := range annotations {
+        clone[index] = Annotation{
+          Name:     annotation.Name,
+          Argument: cloneAnnotationArgument(annotation.Argument),
+        }
+      }
       return clone
+    }
+
+    // cloneAnnotationArgument deep copies annotation payloads so middleware
+    // cannot mutate shared state across requests. Scalars are immutable and
+    // share safely; maps and slices recurse. The rendered literal model only
+    // holds nil, string, int64, float64, bool, []any, and map[string]any.
+    func cloneAnnotationArgument(argument any) any {
+      switch value := argument.(type) {
+      case map[string]any:
+        clone := make(map[string]any, len(value))
+        for key, item := range value {
+          clone[key] = cloneAnnotationArgument(item)
+        }
+        return clone
+      case []any:
+        clone := make([]any, len(value))
+        for index, item := range value {
+          clone[index] = cloneAnnotationArgument(item)
+        }
+        return clone
+      default:
+        return argument
+      }
     }
 
     // Void represents the absence of an input or output payload.

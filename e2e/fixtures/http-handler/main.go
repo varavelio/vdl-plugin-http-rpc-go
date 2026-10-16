@@ -1,7 +1,8 @@
 package main
 
 // Fixture http-handler tests serving through Server.HTTPHandler on net/http.
-// Goal: prove mounted routing, per-request props, and 404/405 transport statuses.
+// Goal: prove mounted routing, per-request props, 404/405 transport statuses,
+// and request/response body caps on both wirings.
 
 import (
 	"bytes"
@@ -24,6 +25,9 @@ type appProps struct {
 func main() {
 	server := rpcserver.NewServer[appProps]()
 	echoed := false
+	server.RPCs.Service().Procs.Blob().Handle(func(c *rpcserver.ServiceBlobHandlerContext[appProps]) (vdltypes.ServiceBlobOutput, error) {
+		return vdltypes.ServiceBlobOutput{Data: strings.Repeat("x", 5<<20)}, nil
+	})
 	server.RPCs.Service().Procs.Echo().Handle(func(c *rpcserver.ServiceEchoHandlerContext[appProps]) (vdltypes.ServiceEchoOutput, error) {
 		echoed = true
 		return vdltypes.ServiceEchoOutput{Data: c.Input.Data, User: c.Props.User}, nil
@@ -64,6 +68,19 @@ func main() {
 	expectBodyRaw(ts.URL+"/rpc/service/echo", []byte(`{"data":"hi"} junk`), `{"ok":false,`)
 	if echoed {
 		panic("handler ran for trailing-garbage body")
+	}
+
+	// Oversized responses fail as client transport errors before decoding.
+	if _, err := client.RPCs.Service().Procs.Blob().Execute(context.Background(), rpcclient.Void{}); err == nil {
+		panic("expected transport error for oversized response")
+	}
+	bigClient := rpcclient.NewClient(ts.URL + "/rpc").WithMaxResponseBodyBytes(8 << 20).Build()
+	blob, err := bigClient.RPCs.Service().Procs.Blob().Execute(context.Background(), rpcclient.Void{})
+	if err != nil {
+		panic(err)
+	}
+	if len(blob.Data) != 5<<20 {
+		panic(fmt.Sprintf("expected 5MiB blob, got %d bytes", len(blob.Data)))
 	}
 
 	result, err := client.RPCs.Service().Procs.Echo().Execute(context.Background(), vdltypes.ServiceEchoInput{Data: "hi"})
