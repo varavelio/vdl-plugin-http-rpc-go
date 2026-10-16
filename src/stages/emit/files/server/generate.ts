@@ -2,7 +2,7 @@ import { newGenerator } from "@varavel/gen";
 import type { PluginOutputFile } from "@varavel/vdl-plugin-sdk";
 import type {
   GeneratorContext,
-  ProcedureDescriptor,
+  ProcDescriptor,
   ServiceDescriptor,
 } from "../../../model/types";
 import {
@@ -38,9 +38,7 @@ export function generateServerFile(
  */
 function renderServerImports(context: GeneratorContext): string {
   const needsTypesImport = context.services.some((service) =>
-    service.procedures.some(
-      (procedure) => procedure.inputTypeName || procedure.outputTypeName,
-    ),
+    service.procs.some((proc) => proc.inputTypeName || proc.outputTypeName),
   );
   const hasExternalTypesImport = context.options.typesImport.length > 0;
 
@@ -156,10 +154,10 @@ function renderServerService(
   g.line("}");
   g.break();
 
-  for (const procedure of service.procedures) {
+  for (const proc of service.procs) {
     g.break();
     g.break();
-    g.raw(renderServerProcedure(service, procedure, context));
+    g.raw(renderServerProc(service, proc, context));
   }
 
   return g.toString();
@@ -168,29 +166,27 @@ function renderServerService(
 /**
  * Renders the typed server adapter for a single procedure.
  */
-function renderServerProcedure(
+function renderServerProc(
   service: ServiceDescriptor,
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
   const registryName = `server${service.goName}Procs`;
-  const entryName = `proc${procedure.procedureTypeName}Entry`;
-  const handlerContextName = `${procedure.procedureTypeName}HandlerContext`;
-  const handlerFuncName = `${procedure.procedureTypeName}HandlerFunc`;
-  const middlewareFuncName = `${procedure.procedureTypeName}MiddlewareFunc`;
-  const inputType = getServerInputType(procedure, context);
-  const outputType = getServerOutputType(procedure, context);
+  const entryName = `proc${proc.procTypeName}Entry`;
+  const handlerContextName = `${proc.procTypeName}HandlerContext`;
+  const handlerFuncName = `${proc.procTypeName}HandlerFunc`;
+  const middlewareFuncName = `${proc.procTypeName}MiddlewareFunc`;
+  const inputType = getServerInputType(proc, context);
+  const outputType = getServerOutputType(proc, context);
 
   const g = newGenerator().withTabs();
   writeComment(
     g,
-    `${procedure.goName} returns the registration entry for the ${service.name}.${procedure.name} procedure.`,
-    procedure.doc,
-    procedure.deprecated,
+    `${proc.goName} returns the registration entry for the ${service.name}.${proc.name} procedure.`,
+    proc.doc,
+    proc.deprecated,
   );
-  g.line(
-    `func (r *${registryName}[T]) ${procedure.goName}() ${entryName}[T] {`,
-  );
+  g.line(`func (r *${registryName}[T]) ${proc.goName}() ${entryName}[T] {`);
   g.block(() => {
     g.line(`return ${entryName}[T]{intServer: r.intServer}`);
   });
@@ -199,7 +195,7 @@ function renderServerProcedure(
 
   writeComment(
     g,
-    `${entryName} contains the generated registration API for the ${service.name}.${procedure.name} procedure.`,
+    `${entryName} contains the generated registration API for the ${service.name}.${proc.name} procedure.`,
   );
   g.line(`type ${entryName}[T any] struct {`);
   g.block(() => {
@@ -210,14 +206,14 @@ function renderServerProcedure(
 
   writeComment(
     g,
-    `${handlerContextName} is the typed handler context passed to ${service.name}.${procedure.name} procedure handlers.`,
+    `${handlerContextName} is the typed handler context passed to ${service.name}.${proc.name} procedure handlers.`,
   );
   g.line(`type ${handlerContextName}[T any] = HandlerContext[T, ${inputType}]`);
   g.break();
 
   writeComment(
     g,
-    `${handlerFuncName} is the typed handler signature for the ${service.name}.${procedure.name} procedure.`,
+    `${handlerFuncName} is the typed handler signature for the ${service.name}.${proc.name} procedure.`,
   );
   g.line(
     `type ${handlerFuncName}[T any] func(c *${handlerContextName}[T]) (${outputType}, error)`,
@@ -226,7 +222,7 @@ function renderServerProcedure(
 
   writeComment(
     g,
-    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${procedure.name} procedure.`,
+    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${proc.name} procedure.`,
   );
   g.line(
     `type ${middlewareFuncName}[T any] func(next ${handlerFuncName}[T]) ${handlerFuncName}[T]`,
@@ -235,7 +231,7 @@ function renderServerProcedure(
 
   writeComment(
     g,
-    `Use registers typed middleware for the ${service.name}.${procedure.name} procedure.`,
+    `Use registers typed middleware for the ${service.name}.${proc.name} procedure.`,
   );
   g.line(`func (e ${entryName}[T]) Use(mw ${middlewareFuncName}[T]) {`);
   g.block(() => {
@@ -262,7 +258,7 @@ function renderServerProcedure(
           g.line("if !ok {");
           g.block(() => {
             g.line(
-              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${procedure.name}", genericOutput)`,
+              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${proc.name}", genericOutput)`,
             );
           });
           g.line("}");
@@ -274,7 +270,7 @@ function renderServerProcedure(
         g.line("if !ok {");
         g.block(() => {
           g.line(
-            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`,
+            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${proc.name}", cGeneric.Input)`,
           );
         });
         g.line("}");
@@ -284,7 +280,7 @@ function renderServerProcedure(
           g.line("Input: typedInput,");
           g.line("Context: cGeneric.Context,");
           g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("procedure: cGeneric.procedure,");
+          g.line("proc: cGeneric.proc,");
         });
         g.line("}");
         g.line("return typedChain(cSpecific)");
@@ -293,7 +289,7 @@ function renderServerProcedure(
     });
     g.line("}");
     g.line(
-      `e.intServer.addProcMiddleware(${renderGoString(service.name)}, ${renderGoString(procedure.name)}, adapted)`,
+      `e.intServer.addProcMiddleware(${renderGoString(service.name)}, ${renderGoString(proc.name)}, adapted)`,
     );
   });
   g.line("}");
@@ -301,7 +297,7 @@ function renderServerProcedure(
 
   writeComment(
     g,
-    `Handle registers the typed business handler for the ${service.name}.${procedure.name} procedure.`,
+    `Handle registers the typed business handler for the ${service.name}.${proc.name} procedure.`,
   );
   g.line(`func (e ${entryName}[T]) Handle(handler ${handlerFuncName}[T]) {`);
   g.block(() => {
@@ -313,7 +309,7 @@ function renderServerProcedure(
       g.line("if !ok {");
       g.block(() => {
         g.line(
-          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`,
+          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${proc.name}", cGeneric.Input)`,
         );
       });
       g.line("}");
@@ -323,10 +319,10 @@ function renderServerProcedure(
         g.line("Input: typedInput,");
         g.line("Context: cGeneric.Context,");
         g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-        g.line("procedure: cGeneric.procedure,");
+        g.line("proc: cGeneric.proc,");
       });
       g.line("}");
-      if (procedure.outputTypeName) {
+      if (proc.outputTypeName) {
         g.line("return handler(cSpecific)");
       } else {
         g.line("if _, err := handler(cSpecific); err != nil {");
@@ -341,7 +337,7 @@ function renderServerProcedure(
 
     g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
     g.block(() => {
-      if (procedure.inputTypeName) {
+      if (proc.inputTypeName) {
         g.line("if len(bytes.TrimSpace(raw)) == 0 {");
         g.block(() => {
           g.line('raw = json.RawMessage("{}")');
@@ -351,7 +347,7 @@ function renderServerProcedure(
         g.line("if err := json.Unmarshal(raw, &input); err != nil {");
         g.block(() => {
           g.line(
-            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${procedure.name} input: %w", err)`,
+            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${proc.name} input: %w", err)`,
           );
         });
         g.line("}");
@@ -362,7 +358,7 @@ function renderServerProcedure(
     });
     g.line("}");
     g.line(
-      `e.intServer.setProcHandler(${renderGoString(service.name)}, ${renderGoString(procedure.name)}, adaptedHandler, deserializer)`,
+      `e.intServer.setProcHandler(${renderGoString(service.name)}, ${renderGoString(proc.name)}, adaptedHandler, deserializer)`,
     );
   });
   g.line("}");
@@ -386,11 +382,11 @@ function writeComment(
  * Resolves the generated server input type for a procedure.
  */
 function getServerInputType(
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
-  return procedure.inputTypeName
-    ? `${getTypesQualifier(context)}${procedure.inputTypeName}`
+  return proc.inputTypeName
+    ? `${getTypesQualifier(context)}${proc.inputTypeName}`
     : "Void";
 }
 
@@ -398,11 +394,11 @@ function getServerInputType(
  * Resolves the generated server output type for a procedure.
  */
 function getServerOutputType(
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
-  return procedure.outputTypeName
-    ? `${getTypesQualifier(context)}${procedure.outputTypeName}`
+  return proc.outputTypeName
+    ? `${getTypesQualifier(context)}${proc.outputTypeName}`
     : "Void";
 }
 

@@ -66,24 +66,24 @@ describe("createGeneratorContext", () => {
 
     expect(result.errors).toEqual([]);
     expect(result.context?.services).toHaveLength(1);
-    expect(result.context?.procedures).toHaveLength(1);
+    expect(result.context?.procs).toHaveLength(1);
 
     const service = result.context?.services[0];
-    const procedure = result.context?.procedures[0];
+    const proc = result.context?.procs[0];
 
     expect(service).toMatchObject({
       name: "Messages",
       goName: "Messages",
     });
-    expect(procedure).toMatchObject({
+    expect(proc).toMatchObject({
       rpcName: "Messages",
       name: "sendMessage",
       goName: "SendMessage",
-      procedureTypeName: "MessagesSendMessage",
+      procTypeName: "MessagesSendMessage",
       inputTypeName: "MessagesSendMessageInput",
       outputTypeName: "MessagesSendMessageOutput",
     });
-    expect(procedure?.annotations.map((item) => item.name)).toEqual(["cache"]);
+    expect(proc?.annotations.map((item) => item.name)).toEqual(["cache"]);
   });
 
   it("ignores non-proc fields inside httpRpc services", () => {
@@ -117,8 +117,8 @@ describe("createGeneratorContext", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.context?.procedures).toHaveLength(1);
-    expect(result.context?.procedures[0]?.name).toBe("ping");
+    expect(result.context?.procs).toHaveLength(1);
+    expect(result.context?.procs[0]?.name).toBe("ping");
   });
 
   it("allows procedures that omit input and output entirely", () => {
@@ -151,7 +151,7 @@ describe("createGeneratorContext", () => {
     });
 
     expect(result.errors).toEqual([]);
-    expect(result.context?.procedures[0]).toMatchObject({
+    expect(result.context?.procs[0]).toMatchObject({
       name: "ping",
       inputTypeName: undefined,
       outputTypeName: undefined,
@@ -201,8 +201,8 @@ describe("createGeneratorContext", () => {
 
     expect(result.errors).toEqual([]);
     expect(result.context?.services[0]?.deprecated).toBe("Use NewLegacy.");
-    expect(result.context?.procedures[0]?.deprecated).toBe("");
-    expect(result.context?.procedures[1]?.deprecated).toBe("");
-    expect(result.context?.procedures[2]?.deprecated).toBeUndefined();
+    expect(result.context?.procs[0]?.deprecated).toBe("");
+    expect(result.context?.procs[1]?.deprecated).toBe("");
+    expect(result.context?.procs[2]?.deprecated).toBeUndefined();
   });
 });

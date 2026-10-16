@@ -24,9 +24,9 @@ func main() {
 	server.Use(func(next rpcserver.GlobalHandlerFunc[appProps]) rpcserver.GlobalHandlerFunc[appProps] {
 		return func(c *rpcserver.HandlerContext[appProps, any]) (any, error) {
 			*c.Props.Trace = append(*c.Props.Trace, "Global")
-			wantProc1Input := c.RPCName() == "ServiceA" && c.ProcedureName() == "proc1"
+			wantProc1Input := c.RPCName() == "ServiceA" && c.ProcName() == "proc1"
 			if _, ok := c.InputAs[vdltypes.ServiceAProc1Input](); ok != wantProc1Input {
-				panic(fmt.Sprintf("unexpected ServiceAProc1Input match for %s.%s", c.RPCName(), c.ProcedureName()))
+				panic(fmt.Sprintf("unexpected ServiceAProc1Input match for %s.%s", c.RPCName(), c.ProcName()))
 			}
 			return next(c)
 		}

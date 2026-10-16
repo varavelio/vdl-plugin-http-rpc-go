@@ -12,7 +12,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// non-marker annotations declared on the VDL procedure.
 	type RequestInfo struct {
 		RPCName string
-		ProcedureName string
+		ProcName string
 		Input any
 		Annotations []Annotation
 	}
@@ -87,7 +87,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		// Immutable after construction.
 		baseURL string
 		httpClient *http.Client
-		procedureDefs map[string]map[string]ProcedureDefinition
+		procDefs map[string]map[string]ProcDefinition
 
 		// Dynamic components
 		headerProviders []HeaderProvider
@@ -181,18 +181,18 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	//
 	// The caller can optionally pass functional options to customize transport
 	// behavior, headers, interceptors, and retry policies.
-	func newInternalClient(baseURL string, procDefs []ProcedureDefinition, opts ...internalClientOption) *internalClient {
-		procedureDefs := make(map[string]map[string]ProcedureDefinition)
+	func newInternalClient(baseURL string, defs []ProcDefinition, opts ...internalClientOption) *internalClient {
+		procDefs := make(map[string]map[string]ProcDefinition)
 
 		ensureRPC := func(rpcName string) {
-			if _, ok := procedureDefs[rpcName]; !ok {
-				procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
+			if _, ok := procDefs[rpcName]; !ok {
+				procDefs[rpcName] = make(map[string]ProcDefinition)
 			}
 		}
 
-		for _, def := range procDefs {
+		for _, def := range defs {
 			ensureRPC(def.RPCName)
-			procedureDefs[def.RPCName][def.Name] = def
+			procDefs[def.RPCName][def.Name] = def
 		}
 
 
@@ -200,7 +200,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 			baseURL: strings.TrimRight(baseURL, "/"),
 			httpClient: http.DefaultClient,
 			maxResponseBodyBytes: defaultMaxResponseBodyBytes,
-			procedureDefs: procedureDefs,
+			procDefs: procDefs,
 			headerProviders: []HeaderProvider{},
 			interceptors: []Interceptor{},
 			rpcHeaderProviders: make(map[string][]HeaderProvider),
@@ -290,13 +290,13 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return chain(ctx, req)
 	}
 
-	// lookupProcedure returns the generated procedure definition for the requested RPC member.
-	func (c *internalClient) lookupProcedure(rpcName string, procedureName string) (ProcedureDefinition, bool) {
-		if procedures, ok := c.procedureDefs[rpcName]; ok {
-			procedure, ok := procedures[procedureName]
-			return procedure, ok
+	// lookupProc returns the generated procedure definition for the requested RPC member.
+	func (c *internalClient) lookupProc(rpcName string, procName string) (ProcDefinition, bool) {
+		if procs, ok := c.procDefs[rpcName]; ok {
+			proc, ok := procs[procName]
+			return proc, ok
 		}
-		return ProcedureDefinition{}, false
+		return ProcDefinition{}, false
 	}
 
 	// proc invokes the given procedure and returns the raw wire envelope.
@@ -309,7 +309,7 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		opRetryConf *RetryConfig,
 		opTimeoutConf *TimeoutConfig,
 	) Response[json.RawMessage] {
-		procedure, ok := c.lookupProcedure(rpcName, procName)
+		proc, ok := c.lookupProc(rpcName, procName)
 		if !ok {
 			return Response[json.RawMessage]{
 				Ok: false,
@@ -324,9 +324,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 
 		reqInfo := RequestInfo{
 			RPCName: rpcName,
-			ProcedureName: procName,
+			ProcName: procName,
 			Input: input,
-			Annotations: cloneAnnotations(procedure.Annotations),
+			Annotations: cloneAnnotations(proc.Annotations),
 		}
 
 		invoker := func(callCtx context.Context, req RequestInfo) (Response[json.RawMessage], error) {
@@ -344,12 +344,12 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 					Error: Error{
 						Category: "ClientError",
 						Code: "ENCODE_INPUT",
-						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.ProcedureName, err),
+						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.ProcName, err),
 					},
 				}, nil
 			}
 
-			url := c.baseURL + procedure.Path
+			url := c.baseURL + proc.Path
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -580,44 +580,44 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// Client Builder
 	// -----------------------------------------------------------------------------
 
-	// clientBuilder collects configuration before a generated client is built.
-	type clientBuilder struct {
+	// ClientBuilder collects configuration before a generated client is built.
+	type ClientBuilder struct {
 		baseURL string
 		opts []internalClientOption
 	}
 
 	// WithHTTPClient supplies a custom HTTP client implementation.
-	func (b *clientBuilder) WithHTTPClient(client *http.Client) *clientBuilder {
+	func (b *ClientBuilder) WithHTTPClient(client *http.Client) *ClientBuilder {
 		b.opts = append(b.opts, withHTTPClient(client))
 		return b
 	}
 
 	// WithHeader registers a static header that is sent with every request.
-	func (b *clientBuilder) WithHeader(key string, value string) *clientBuilder {
+	func (b *ClientBuilder) WithHeader(key string, value string) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalHeader(key, value))
 		return b
 	}
 
 	// WithHeaderProvider registers a dynamic header provider.
-	func (b *clientBuilder) WithHeaderProvider(provider HeaderProvider) *clientBuilder {
+	func (b *ClientBuilder) WithHeaderProvider(provider HeaderProvider) *ClientBuilder {
 		b.opts = append(b.opts, withHeaderProvider(provider))
 		return b
 	}
 
 	// WithInterceptor registers a transport interceptor.
-	func (b *clientBuilder) WithInterceptor(interceptor Interceptor) *clientBuilder {
+	func (b *ClientBuilder) WithInterceptor(interceptor Interceptor) *ClientBuilder {
 		b.opts = append(b.opts, withInterceptor(interceptor))
 		return b
 	}
 
 	// WithRetryConfig sets the default retry configuration for procedures.
-	func (b *clientBuilder) WithRetryConfig(conf RetryConfig) *clientBuilder {
+	func (b *ClientBuilder) WithRetryConfig(conf RetryConfig) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalRetryConfig(conf))
 		return b
 	}
 
 	// WithTimeoutConfig sets the default timeout configuration for procedures.
-	func (b *clientBuilder) WithTimeoutConfig(conf TimeoutConfig) *clientBuilder {
+	func (b *ClientBuilder) WithTimeoutConfig(conf TimeoutConfig) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalTimeoutConfig(conf))
 		return b
 	}
@@ -625,14 +625,14 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// WithMaxResponseBodyBytes caps response body bytes accepted per call.
 	// Responses beyond the cap fail as transport errors before decoding.
 	// Values <= 0 restore the 4 MiB default.
-	func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder {
+	func (b *ClientBuilder) WithMaxResponseBodyBytes(n int64) *ClientBuilder {
 		b.opts = append(b.opts, withMaxResponseBodyBytes(n))
 		return b
 	}
 
 	// Build creates the generated RPC client.
-	func (b *clientBuilder) Build() *Client {
-		intClient := newInternalClient(b.baseURL, VDLProcedures, b.opts...)
+	func (b *ClientBuilder) Build() *Client {
+		intClient := newInternalClient(b.baseURL, VDLProcs, b.opts...)
 		return &Client{RPCs: &clientRPCRegistry{intClient: intClient}}
 	}
 
@@ -646,8 +646,8 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	}
 
 	// NewClient creates a new generated RPC client builder.
-	func NewClient(baseURL string) *clientBuilder {
-		return &clientBuilder{baseURL: baseURL, opts: []internalClientOption{}}
+	func NewClient(baseURL string) *ClientBuilder {
+		return &ClientBuilder{baseURL: baseURL, opts: []internalClientOption{}}
 	}
 
 	// clientRPCRegistry exposes the generated RPC services.

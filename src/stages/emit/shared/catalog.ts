@@ -3,7 +3,7 @@ import { dedent } from "@varavel/vdl-plugin-sdk/utils/strings";
 import { lowerFirst } from "../../../shared/naming";
 import type {
   GeneratorContext,
-  ProcedureDescriptor,
+  ProcDescriptor,
   ServiceDescriptor,
 } from "../../model/types";
 import { joinSections } from "./helpers";
@@ -23,40 +23,34 @@ export function renderCatalog(context: GeneratorContext) {
   return joinSections([
     CATALOG_HEADER,
     renderPathCatalog(context.services),
-    renderProcedureCatalog("VDLProcedures", context.procedures),
+    renderProcCatalog("VDLProcs", context.procs),
   ]);
 }
 
 /**
  * Renders the generated Go procedure catalog used by runtime code.
  */
-function renderProcedureCatalog(
-  constName: string,
-  procedures: ProcedureDescriptor[],
-): string {
-  const summary =
-    "VDLProcedures contains every generated procedure definition.";
+function renderProcCatalog(constName: string, procs: ProcDescriptor[]): string {
+  const summary = "VDLProcs contains every generated procedure definition.";
 
-  if (procedures.length === 0) {
+  if (procs.length === 0) {
     const g = newGenerator().withTabs();
     g.line(renderCommentBlock({ summary }));
-    g.line(`var ${constName} = []ProcedureDefinition{}`);
+    g.line(`var ${constName} = []ProcDefinition{}`);
     return g.toString();
   }
 
-  const entries = procedures.map((procedure) => {
+  const entries = procs.map((proc) => {
     const g = newGenerator().withTabs();
     g.line("{");
     g.block(() => {
-      g.line(`RPCName: ${renderGoString(procedure.rpcName)},`);
-      g.line(`RPCRoute: ${renderGoString(lowerFirst(procedure.rpcName))},`);
-      g.line(`Name: ${renderGoString(procedure.name)},`);
+      g.line(`RPCName: ${renderGoString(proc.rpcName)},`);
+      g.line(`RPCRoute: ${renderGoString(lowerFirst(proc.rpcName))},`);
+      g.line(`Name: ${renderGoString(proc.name)},`);
       g.line(
-        `Path: ${renderGoString(`/${lowerFirst(procedure.rpcName)}/${procedure.name}`)},`,
+        `Path: ${renderGoString(`/${lowerFirst(proc.rpcName)}/${proc.name}`)},`,
       );
-      g.line(
-        `Annotations: ${renderAnnotationsLiteral(procedure.annotations)},`,
-      );
+      g.line(`Annotations: ${renderAnnotationsLiteral(proc.annotations)},`);
     });
     g.line("},");
     return g.toString().trim();
@@ -64,7 +58,7 @@ function renderProcedureCatalog(
 
   const g = newGenerator().withTabs();
   g.line(renderCommentBlock({ summary }));
-  g.line(`var ${constName} = []ProcedureDefinition{`);
+  g.line(`var ${constName} = []ProcDefinition{`);
   g.block(() => {
     for (const entry of entries) {
       g.line(entry);
@@ -91,8 +85,8 @@ function renderPathCatalog(services: ServiceDescriptor[]): string {
     for (const service of services) {
       g.line(`${service.goName} struct {`);
       g.block(() => {
-        for (const procedure of service.procedures) {
-          g.line(`${procedure.goName} string`);
+        for (const proc of service.procs) {
+          g.line(`${proc.goName} string`);
         }
       });
       g.line("}");
@@ -104,15 +98,15 @@ function renderPathCatalog(services: ServiceDescriptor[]): string {
     for (const service of services) {
       g.line(`${service.goName}: struct {`);
       g.block(() => {
-        for (const procedure of service.procedures) {
-          g.line(`${procedure.goName} string`);
+        for (const proc of service.procs) {
+          g.line(`${proc.goName} string`);
         }
       });
       g.line("}{");
       g.block(() => {
-        for (const procedure of service.procedures) {
+        for (const proc of service.procs) {
           g.line(
-            `${procedure.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${procedure.name}`)},`,
+            `${proc.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${proc.name}`)},`,
           );
         }
       });

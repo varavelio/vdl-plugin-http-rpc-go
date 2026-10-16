@@ -17,7 +17,7 @@ import {
 import type {
   GeneratorContext,
   GeneratorOptions,
-  ProcedureDescriptor,
+  ProcDescriptor,
   ServiceDescriptor,
 } from "./types";
 
@@ -38,10 +38,10 @@ export function createGeneratorContext(options: {
     services.push(buildServiceDescriptor(typeDef));
   }
 
-  const procedures: ProcedureDescriptor[] = [];
+  const procs: ProcDescriptor[] = [];
 
   for (const service of services) {
-    procedures.push(...service.procedures);
+    procs.push(...service.procs);
   }
 
   return {
@@ -51,7 +51,7 @@ export function createGeneratorContext(options: {
       schema: options.input.ir,
       options: options.generatorOptions,
       services,
-      procedures,
+      procs,
     },
   };
 }
@@ -60,12 +60,12 @@ export function createGeneratorContext(options: {
  * Converts an `@httpRpc`-annotated type into a service descriptor.
  */
 function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
-  const proceduresLocal: ProcedureDescriptor[] = [];
+  const procLocals: ProcDescriptor[] = [];
 
   for (const field of typeDef.typeRef.objectFields ?? []) {
-    const procedure = buildProcedureDescriptor(typeDef, field);
-    if (procedure) {
-      proceduresLocal.push(procedure);
+    const proc = buildProcDescriptor(typeDef, field);
+    if (proc) {
+      procLocals.push(proc);
     }
   }
 
@@ -76,38 +76,38 @@ function buildServiceDescriptor(typeDef: TypeDef): ServiceDescriptor {
     doc: typeDef.doc,
     deprecated: deprecationNote(typeDef.annotations),
     annotations: typeDef.annotations,
-    procedures: proceduresLocal,
+    procs: procLocals,
   };
 }
 
 /**
  * Converts a `@proc` field into a procedure descriptor.
  */
-function buildProcedureDescriptor(
+function buildProcDescriptor(
   serviceType: TypeDef,
   field: Field,
-): ProcedureDescriptor | undefined {
+): ProcDescriptor | undefined {
   if (!getAnnotation(field.annotations, "proc")) {
     return undefined;
   }
 
-  const inputField = findProcedureField(field, "input");
-  const outputField = findProcedureField(field, "output");
+  const inputField = findProcField(field, "input");
+  const outputField = findProcField(field, "output");
   const rpcGoName = toGoTypeName(serviceType.name);
   const goName = toGoFieldName(field.name);
-  const procedureTypeName = toInlineTypeName(rpcGoName, field.name);
+  const procTypeName = toInlineTypeName(rpcGoName, field.name);
 
   return {
     rpcName: serviceType.name,
     rpcGoName,
     name: field.name,
     goName,
-    procedureTypeName,
+    procTypeName,
     inputTypeName: inputField
-      ? toInlineTypeName(procedureTypeName, inputField.name)
+      ? toInlineTypeName(procTypeName, inputField.name)
       : undefined,
     outputTypeName: outputField
-      ? toInlineTypeName(procedureTypeName, outputField.name)
+      ? toInlineTypeName(procTypeName, outputField.name)
       : undefined,
     position: field.position,
     doc: field.doc,
@@ -123,13 +123,8 @@ function buildProcedureDescriptor(
 /**
  * Finds the named `input` or `output` field inside a procedure object.
  */
-function findProcedureField(
-  procedureField: Field,
-  name: string,
-): Field | undefined {
-  return procedureField.typeRef.objectFields?.find(
-    (field) => field.name === name,
-  );
+function findProcField(procField: Field, name: string): Field | undefined {
+  return procField.typeRef.objectFields?.find((field) => field.name === name);
 }
 
 /**

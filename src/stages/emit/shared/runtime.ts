@@ -17,8 +17,8 @@ export function renderCoreRuntime(): string {
 			Argument any
 		}
 
-		// ProcedureDefinition describes a generated procedure.
-		type ProcedureDefinition struct {
+		// ProcDefinition describes a generated procedure.
+		type ProcDefinition struct {
 			// RPCName is the VDL service name that owns the procedure.
 			RPCName string
 			// RPCRoute is the lowerFirst transport segment precomputed by the generator.

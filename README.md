@@ -112,7 +112,7 @@ For `target "server"`:
 - `NewNetHTTPAdapter` + `HandleRequest` for manual wiring, or
   `Server.HTTPHandler` for standard `net/http` mounting.
 
-Both targets include the operation catalogs `VDLPaths` and `VDLProcedures`, with operation annotations preserved as `Annotation` values.
+Both targets include the operation catalogs `VDLPaths` and `VDLProcs`, with operation annotations preserved as `Annotation` values.
 
 ## Services Look Like This
 

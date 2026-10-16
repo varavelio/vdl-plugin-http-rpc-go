@@ -2,7 +2,7 @@ import { newGenerator } from "@varavel/gen";
 import type { PluginOutputFile } from "@varavel/vdl-plugin-sdk";
 import type {
   GeneratorContext,
-  ProcedureDescriptor,
+  ProcDescriptor,
   ServiceDescriptor,
 } from "../../../model/types";
 import {
@@ -38,9 +38,7 @@ export function generateClientFile(
  */
 function renderClientImports(context: GeneratorContext): string {
   const needsTypesImport = context.services.some((service) =>
-    service.procedures.some(
-      (procedure) => procedure.inputTypeName || procedure.outputTypeName,
-    ),
+    service.procs.some((proc) => proc.inputTypeName || proc.outputTypeName),
   );
   const hasExternalTypesImport = context.options.typesImport.length > 0;
 
@@ -199,10 +197,10 @@ function renderClientService(
   g.line("}");
   g.break();
 
-  for (const procedure of service.procedures) {
+  for (const proc of service.procs) {
     g.break();
     g.break();
-    g.raw(renderClientProcedure(service, procedure, context));
+    g.raw(renderClientProc(service, proc, context));
   }
 
   return g.toString();
@@ -211,29 +209,27 @@ function renderClientService(
 /**
  * Renders a client procedure builder and execute method.
  */
-function renderClientProcedure(
+function renderClientProc(
   service: ServiceDescriptor,
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
   const registryName = `client${service.goName}Procs`;
-  const builderName = `clientBuilder${procedure.procedureTypeName}`;
-  const inputType = getClientInputType(procedure, context);
-  const outputType = getClientOutputType(procedure, context);
+  const builderName = `ClientBuilder${proc.procTypeName}`;
+  const inputType = getClientInputType(proc, context);
+  const outputType = getClientOutputType(proc, context);
 
   const g = newGenerator().withTabs();
   writeComment(
     g,
-    `${procedure.goName} creates a call builder for the ${service.name}.${procedure.name} procedure.`,
-    procedure.doc,
-    procedure.deprecated,
+    `${proc.goName} creates a call builder for the ${service.name}.${proc.name} procedure.`,
+    proc.doc,
+    proc.deprecated,
   );
-  g.line(
-    `func (registry *${registryName}) ${procedure.goName}() *${builderName} {`,
-  );
+  g.line(`func (registry *${registryName}) ${proc.goName}() *${builderName} {`);
   g.block(() => {
     g.line(
-      `return &${builderName}{client: registry.intClient, headerProviders: []HeaderProvider{}, rpcName: ${renderGoString(service.name)}, procedureName: ${renderGoString(procedure.name)}}`,
+      `return &${builderName}{client: registry.intClient, headerProviders: []HeaderProvider{}, rpcName: ${renderGoString(service.name)}, procName: ${renderGoString(proc.name)}}`,
     );
   });
   g.line("}");
@@ -241,12 +237,12 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `${builderName} configures and executes calls to the ${service.name}.${procedure.name} procedure.`,
+    `${builderName} configures and executes calls to the ${service.name}.${proc.name} procedure.`,
   );
   g.line(`type ${builderName} struct {`);
   g.block(() => {
     g.line("rpcName string");
-    g.line("procedureName string");
+    g.line("procName string");
     g.line("client *internalClient");
     g.line("headerProviders []HeaderProvider");
     g.line("retryConf *RetryConfig");
@@ -257,7 +253,7 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `WithHeader adds a static header to the ${service.name}.${procedure.name} procedure call.`,
+    `WithHeader adds a static header to the ${service.name}.${proc.name} procedure call.`,
   );
   g.line(
     `func (b *${builderName}) WithHeader(key string, value string) *${builderName} {`,
@@ -278,7 +274,7 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `WithHeaderProvider adds a dynamic header provider to the ${service.name}.${procedure.name} procedure call.`,
+    `WithHeaderProvider adds a dynamic header provider to the ${service.name}.${proc.name} procedure call.`,
   );
   g.line(
     `func (b *${builderName}) WithHeaderProvider(provider HeaderProvider) *${builderName} {`,
@@ -292,7 +288,7 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `WithRetryConfig overrides retry behavior for the ${service.name}.${procedure.name} procedure call.`,
+    `WithRetryConfig overrides retry behavior for the ${service.name}.${proc.name} procedure call.`,
   );
   g.line(
     `func (b *${builderName}) WithRetryConfig(conf RetryConfig) *${builderName} {`,
@@ -306,7 +302,7 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `WithTimeoutConfig overrides timeout behavior for the ${service.name}.${procedure.name} procedure call.`,
+    `WithTimeoutConfig overrides timeout behavior for the ${service.name}.${proc.name} procedure call.`,
   );
   g.line(
     `func (b *${builderName}) WithTimeoutConfig(conf TimeoutConfig) *${builderName} {`,
@@ -320,26 +316,26 @@ function renderClientProcedure(
 
   writeComment(
     g,
-    `Execute sends a request to the ${service.name}.${procedure.name} procedure.`,
+    `Execute sends a request to the ${service.name}.${proc.name} procedure.`,
   );
   g.line(
     `func (b *${builderName}) Execute(ctx context.Context, input ${inputType}) (${outputType}, error) {`,
   );
   g.block(() => {
     g.line(
-      "raw := b.client.proc(ctx, b.rpcName, b.procedureName, input, b.headerProviders, b.retryConf, b.timeoutConf)",
+      "raw := b.client.proc(ctx, b.rpcName, b.procName, input, b.headerProviders, b.retryConf, b.timeoutConf)",
     );
     g.line("if !raw.Ok {");
     g.block(() => {
       g.line(`return ${outputType}{}, raw.Error`);
     });
     g.line("}");
-    if (procedure.outputTypeName) {
+    if (proc.outputTypeName) {
       g.line(`var out ${outputType}`);
       g.line("if err := json.Unmarshal(raw.Output, &out); err != nil {");
       g.block(() => {
         g.line(
-          `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${procedure.name} output: %v", err)}`,
+          `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${proc.name} output: %v", err)}`,
         );
       });
       g.line("}");
@@ -369,11 +365,11 @@ function writeComment(
  * Resolves the generated client input type for a procedure.
  */
 function getClientInputType(
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
-  return procedure.inputTypeName
-    ? `${getTypesQualifier(context)}${procedure.inputTypeName}`
+  return proc.inputTypeName
+    ? `${getTypesQualifier(context)}${proc.inputTypeName}`
     : "Void";
 }
 
@@ -381,11 +377,11 @@ function getClientInputType(
  * Resolves the generated client output type for a procedure.
  */
 function getClientOutputType(
-  procedure: ProcedureDescriptor,
+  proc: ProcDescriptor,
   context: GeneratorContext,
 ): string {
-  return procedure.outputTypeName
-    ? `${getTypesQualifier(context)}${procedure.outputTypeName}`
+  return proc.outputTypeName
+    ? `${getTypesQualifier(context)}${proc.outputTypeName}`
     : "Void";
 }
 

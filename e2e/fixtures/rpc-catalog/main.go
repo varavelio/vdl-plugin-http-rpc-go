@@ -1,6 +1,6 @@
 package main
 
-// Fixture rpc-catalog tests the generated VDLPaths and VDLProcedures metadata.
+// Fixture rpc-catalog tests the generated VDLPaths and VDLProcs metadata.
 // Goal: prove precomputed RPCRoute and Path values match the VPP-2 routes.
 
 import (
@@ -19,32 +19,32 @@ func main() {
 	}
 
 	found := map[string]bool{}
-	for _, operation := range rpcclient.VDLProcedures {
+	for _, operation := range rpcclient.VDLProcs {
 		if operation.RPCName == "MyService" && operation.Name == "myProc" {
 			found["myProc"] = true
 			if operation.RPCRoute != "myService" {
-				fail("VDLProcedures RPCRoute", "myService", operation.RPCRoute)
+				fail("VDLProcs RPCRoute", "myService", operation.RPCRoute)
 			}
 			if operation.Path != "/myService/myProc" {
-				fail("VDLProcedures Path", "/myService/myProc", operation.Path)
+				fail("VDLProcs Path", "/myService/myProc", operation.Path)
 			}
 		}
 		if operation.RPCName == "MyService" && operation.Name == "myOtherProc" {
 			found["myOtherProc"] = true
 			if operation.RPCRoute != "myService" {
-				fail("VDLProcedures RPCRoute", "myService", operation.RPCRoute)
+				fail("VDLProcs RPCRoute", "myService", operation.RPCRoute)
 			}
 			if operation.Path != "/myService/myOtherProc" {
-				fail("VDLProcedures Path", "/myService/myOtherProc", operation.Path)
+				fail("VDLProcs Path", "/myService/myOtherProc", operation.Path)
 			}
 		}
 	}
 	if !found["myProc"] {
-		fmt.Fprintln(os.Stderr, "myProc not found in VDLProcedures")
+		fmt.Fprintln(os.Stderr, "myProc not found in VDLProcs")
 		os.Exit(1)
 	}
 	if !found["myOtherProc"] {
-		fmt.Fprintln(os.Stderr, "myOtherProc not found in VDLProcedures")
+		fmt.Fprintln(os.Stderr, "myOtherProc not found in VDLProcs")
 		os.Exit(1)
 	}
 

@@ -663,38 +663,36 @@ function renderCatalog(context) {
   return joinSections([
     CATALOG_HEADER,
     renderPathCatalog(context.services),
-    renderProcedureCatalog("VDLProcedures", context.procedures)
+    renderProcCatalog("VDLProcs", context.procs)
   ]);
 }
 __name(renderCatalog, "renderCatalog");
-function renderProcedureCatalog(constName, procedures) {
-  const summary = "VDLProcedures contains every generated procedure definition.";
-  if (procedures.length === 0) {
+function renderProcCatalog(constName, procs) {
+  const summary = "VDLProcs contains every generated procedure definition.";
+  if (procs.length === 0) {
     const g2 = newGenerator().withTabs();
     g2.line(renderCommentBlock({ summary }));
-    g2.line(`var ${constName} = []ProcedureDefinition{}`);
+    g2.line(`var ${constName} = []ProcDefinition{}`);
     return g2.toString();
   }
-  const entries = procedures.map((procedure) => {
+  const entries = procs.map((proc) => {
     const g2 = newGenerator().withTabs();
     g2.line("{");
     g2.block(() => {
-      g2.line(`RPCName: ${renderGoString(procedure.rpcName)},`);
-      g2.line(`RPCRoute: ${renderGoString(lowerFirst(procedure.rpcName))},`);
-      g2.line(`Name: ${renderGoString(procedure.name)},`);
+      g2.line(`RPCName: ${renderGoString(proc.rpcName)},`);
+      g2.line(`RPCRoute: ${renderGoString(lowerFirst(proc.rpcName))},`);
+      g2.line(`Name: ${renderGoString(proc.name)},`);
       g2.line(
-        `Path: ${renderGoString(`/${lowerFirst(procedure.rpcName)}/${procedure.name}`)},`
+        `Path: ${renderGoString(`/${lowerFirst(proc.rpcName)}/${proc.name}`)},`
       );
-      g2.line(
-        `Annotations: ${renderAnnotationsLiteral(procedure.annotations)},`
-      );
+      g2.line(`Annotations: ${renderAnnotationsLiteral(proc.annotations)},`);
     });
     g2.line("},");
     return g2.toString().trim();
   });
   const g = newGenerator().withTabs();
   g.line(renderCommentBlock({ summary }));
-  g.line(`var ${constName} = []ProcedureDefinition{`);
+  g.line(`var ${constName} = []ProcDefinition{`);
   g.block(() => {
     for (const entry of entries) {
       g.line(entry);
@@ -703,7 +701,7 @@ function renderProcedureCatalog(constName, procedures) {
   g.line("}");
   return g.toString();
 }
-__name(renderProcedureCatalog, "renderProcedureCatalog");
+__name(renderProcCatalog, "renderProcCatalog");
 function renderPathCatalog(services) {
   const g = newGenerator().withTabs();
   g.line(
@@ -716,8 +714,8 @@ function renderPathCatalog(services) {
     for (const service of services) {
       g.line(`${service.goName} struct {`);
       g.block(() => {
-        for (const procedure of service.procedures) {
-          g.line(`${procedure.goName} string`);
+        for (const proc of service.procs) {
+          g.line(`${proc.goName} string`);
         }
       });
       g.line("}");
@@ -728,15 +726,15 @@ function renderPathCatalog(services) {
     for (const service of services) {
       g.line(`${service.goName}: struct {`);
       g.block(() => {
-        for (const procedure of service.procedures) {
-          g.line(`${procedure.goName} string`);
+        for (const proc of service.procs) {
+          g.line(`${proc.goName} string`);
         }
       });
       g.line("}{");
       g.block(() => {
-        for (const procedure of service.procedures) {
+        for (const proc of service.procs) {
           g.line(
-            `${procedure.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${procedure.name}`)},`
+            `${proc.goName}: ${renderGoString(`/${lowerFirst(service.name)}/${proc.name}`)},`
           );
         }
       });
@@ -765,8 +763,8 @@ function renderCoreRuntime() {
 			Argument any
 		}
 
-		// ProcedureDefinition describes a generated procedure.
-		type ProcedureDefinition struct {
+		// ProcDefinition describes a generated procedure.
+		type ProcDefinition struct {
 			// RPCName is the VDL service name that owns the procedure.
 			RPCName string
 			// RPCRoute is the lowerFirst transport segment precomputed by the generator.
@@ -991,7 +989,7 @@ var CLIENT_RUNTIME = dedent2(
 	// non-marker annotations declared on the VDL procedure.
 	type RequestInfo struct {
 		RPCName string
-		ProcedureName string
+		ProcName string
 		Input any
 		Annotations []Annotation
 	}
@@ -1066,7 +1064,7 @@ var CLIENT_RUNTIME = dedent2(
 		// Immutable after construction.
 		baseURL string
 		httpClient *http.Client
-		procedureDefs map[string]map[string]ProcedureDefinition
+		procDefs map[string]map[string]ProcDefinition
 
 		// Dynamic components
 		headerProviders []HeaderProvider
@@ -1160,18 +1158,18 @@ var CLIENT_RUNTIME = dedent2(
 	//
 	// The caller can optionally pass functional options to customize transport
 	// behavior, headers, interceptors, and retry policies.
-	func newInternalClient(baseURL string, procDefs []ProcedureDefinition, opts ...internalClientOption) *internalClient {
-		procedureDefs := make(map[string]map[string]ProcedureDefinition)
+	func newInternalClient(baseURL string, defs []ProcDefinition, opts ...internalClientOption) *internalClient {
+		procDefs := make(map[string]map[string]ProcDefinition)
 
 		ensureRPC := func(rpcName string) {
-			if _, ok := procedureDefs[rpcName]; !ok {
-				procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
+			if _, ok := procDefs[rpcName]; !ok {
+				procDefs[rpcName] = make(map[string]ProcDefinition)
 			}
 		}
 
-		for _, def := range procDefs {
+		for _, def := range defs {
 			ensureRPC(def.RPCName)
-			procedureDefs[def.RPCName][def.Name] = def
+			procDefs[def.RPCName][def.Name] = def
 		}
 
 
@@ -1179,7 +1177,7 @@ var CLIENT_RUNTIME = dedent2(
 			baseURL: strings.TrimRight(baseURL, "/"),
 			httpClient: http.DefaultClient,
 			maxResponseBodyBytes: defaultMaxResponseBodyBytes,
-			procedureDefs: procedureDefs,
+			procDefs: procDefs,
 			headerProviders: []HeaderProvider{},
 			interceptors: []Interceptor{},
 			rpcHeaderProviders: make(map[string][]HeaderProvider),
@@ -1269,13 +1267,13 @@ var CLIENT_RUNTIME = dedent2(
 		return chain(ctx, req)
 	}
 
-	// lookupProcedure returns the generated procedure definition for the requested RPC member.
-	func (c *internalClient) lookupProcedure(rpcName string, procedureName string) (ProcedureDefinition, bool) {
-		if procedures, ok := c.procedureDefs[rpcName]; ok {
-			procedure, ok := procedures[procedureName]
-			return procedure, ok
+	// lookupProc returns the generated procedure definition for the requested RPC member.
+	func (c *internalClient) lookupProc(rpcName string, procName string) (ProcDefinition, bool) {
+		if procs, ok := c.procDefs[rpcName]; ok {
+			proc, ok := procs[procName]
+			return proc, ok
 		}
-		return ProcedureDefinition{}, false
+		return ProcDefinition{}, false
 	}
 
 	// proc invokes the given procedure and returns the raw wire envelope.
@@ -1288,7 +1286,7 @@ var CLIENT_RUNTIME = dedent2(
 		opRetryConf *RetryConfig,
 		opTimeoutConf *TimeoutConfig,
 	) Response[json.RawMessage] {
-		procedure, ok := c.lookupProcedure(rpcName, procName)
+		proc, ok := c.lookupProc(rpcName, procName)
 		if !ok {
 			return Response[json.RawMessage]{
 				Ok: false,
@@ -1303,9 +1301,9 @@ var CLIENT_RUNTIME = dedent2(
 
 		reqInfo := RequestInfo{
 			RPCName: rpcName,
-			ProcedureName: procName,
+			ProcName: procName,
 			Input: input,
-			Annotations: cloneAnnotations(procedure.Annotations),
+			Annotations: cloneAnnotations(proc.Annotations),
 		}
 
 		invoker := func(callCtx context.Context, req RequestInfo) (Response[json.RawMessage], error) {
@@ -1323,12 +1321,12 @@ var CLIENT_RUNTIME = dedent2(
 					Error: Error{
 						Category: "ClientError",
 						Code: "ENCODE_INPUT",
-						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.ProcedureName, err),
+						Message: fmt.Sprintf("failed to marshal input for %s.%s: %v", req.RPCName, req.ProcName, err),
 					},
 				}, nil
 			}
 
-			url := c.baseURL + procedure.Path
+			url := c.baseURL + proc.Path
 			var last Response[json.RawMessage]
 
 			for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -1559,44 +1557,44 @@ var CLIENT_RUNTIME = dedent2(
 	// Client Builder
 	// -----------------------------------------------------------------------------
 
-	// clientBuilder collects configuration before a generated client is built.
-	type clientBuilder struct {
+	// ClientBuilder collects configuration before a generated client is built.
+	type ClientBuilder struct {
 		baseURL string
 		opts []internalClientOption
 	}
 
 	// WithHTTPClient supplies a custom HTTP client implementation.
-	func (b *clientBuilder) WithHTTPClient(client *http.Client) *clientBuilder {
+	func (b *ClientBuilder) WithHTTPClient(client *http.Client) *ClientBuilder {
 		b.opts = append(b.opts, withHTTPClient(client))
 		return b
 	}
 
 	// WithHeader registers a static header that is sent with every request.
-	func (b *clientBuilder) WithHeader(key string, value string) *clientBuilder {
+	func (b *ClientBuilder) WithHeader(key string, value string) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalHeader(key, value))
 		return b
 	}
 
 	// WithHeaderProvider registers a dynamic header provider.
-	func (b *clientBuilder) WithHeaderProvider(provider HeaderProvider) *clientBuilder {
+	func (b *ClientBuilder) WithHeaderProvider(provider HeaderProvider) *ClientBuilder {
 		b.opts = append(b.opts, withHeaderProvider(provider))
 		return b
 	}
 
 	// WithInterceptor registers a transport interceptor.
-	func (b *clientBuilder) WithInterceptor(interceptor Interceptor) *clientBuilder {
+	func (b *ClientBuilder) WithInterceptor(interceptor Interceptor) *ClientBuilder {
 		b.opts = append(b.opts, withInterceptor(interceptor))
 		return b
 	}
 
 	// WithRetryConfig sets the default retry configuration for procedures.
-	func (b *clientBuilder) WithRetryConfig(conf RetryConfig) *clientBuilder {
+	func (b *ClientBuilder) WithRetryConfig(conf RetryConfig) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalRetryConfig(conf))
 		return b
 	}
 
 	// WithTimeoutConfig sets the default timeout configuration for procedures.
-	func (b *clientBuilder) WithTimeoutConfig(conf TimeoutConfig) *clientBuilder {
+	func (b *ClientBuilder) WithTimeoutConfig(conf TimeoutConfig) *ClientBuilder {
 		b.opts = append(b.opts, withGlobalTimeoutConfig(conf))
 		return b
 	}
@@ -1604,14 +1602,14 @@ var CLIENT_RUNTIME = dedent2(
 	// WithMaxResponseBodyBytes caps response body bytes accepted per call.
 	// Responses beyond the cap fail as transport errors before decoding.
 	// Values <= 0 restore the 4 MiB default.
-	func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder {
+	func (b *ClientBuilder) WithMaxResponseBodyBytes(n int64) *ClientBuilder {
 		b.opts = append(b.opts, withMaxResponseBodyBytes(n))
 		return b
 	}
 
 	// Build creates the generated RPC client.
-	func (b *clientBuilder) Build() *Client {
-		intClient := newInternalClient(b.baseURL, VDLProcedures, b.opts...)
+	func (b *ClientBuilder) Build() *Client {
+		intClient := newInternalClient(b.baseURL, VDLProcs, b.opts...)
 		return &Client{RPCs: &clientRPCRegistry{intClient: intClient}}
 	}
 
@@ -1625,8 +1623,8 @@ var CLIENT_RUNTIME = dedent2(
 	}
 
 	// NewClient creates a new generated RPC client builder.
-	func NewClient(baseURL string) *clientBuilder {
-		return &clientBuilder{baseURL: baseURL, opts: []internalClientOption{}}
+	func NewClient(baseURL string) *ClientBuilder {
+		return &ClientBuilder{baseURL: baseURL, opts: []internalClientOption{}}
 	}
 
 	// clientRPCRegistry exposes the generated RPC services.
@@ -1651,9 +1649,7 @@ function generateClientFile(context) {
 __name(generateClientFile, "generateClientFile");
 function renderClientImports(context) {
   const needsTypesImport = context.services.some(
-    (service) => service.procedures.some(
-      (procedure) => procedure.inputTypeName || procedure.outputTypeName
-    )
+    (service) => service.procs.some((proc) => proc.inputTypeName || proc.outputTypeName)
   );
   const hasExternalTypesImport = context.options.typesImport.length > 0;
   const g = newGenerator().withTabs();
@@ -1791,44 +1787,42 @@ function renderClientService(service, context) {
   });
   g.line("}");
   g.break();
-  for (const procedure of service.procedures) {
+  for (const proc of service.procs) {
     g.break();
     g.break();
-    g.raw(renderClientProcedure(service, procedure, context));
+    g.raw(renderClientProc(service, proc, context));
   }
   return g.toString();
 }
 __name(renderClientService, "renderClientService");
-function renderClientProcedure(service, procedure, context) {
+function renderClientProc(service, proc, context) {
   const registryName = `client${service.goName}Procs`;
-  const builderName = `clientBuilder${procedure.procedureTypeName}`;
-  const inputType = getClientInputType(procedure, context);
-  const outputType = getClientOutputType(procedure, context);
+  const builderName = `ClientBuilder${proc.procTypeName}`;
+  const inputType = getClientInputType(proc, context);
+  const outputType = getClientOutputType(proc, context);
   const g = newGenerator().withTabs();
   writeComment(
     g,
-    `${procedure.goName} creates a call builder for the ${service.name}.${procedure.name} procedure.`,
-    procedure.doc,
-    procedure.deprecated
+    `${proc.goName} creates a call builder for the ${service.name}.${proc.name} procedure.`,
+    proc.doc,
+    proc.deprecated
   );
-  g.line(
-    `func (registry *${registryName}) ${procedure.goName}() *${builderName} {`
-  );
+  g.line(`func (registry *${registryName}) ${proc.goName}() *${builderName} {`);
   g.block(() => {
     g.line(
-      `return &${builderName}{client: registry.intClient, headerProviders: []HeaderProvider{}, rpcName: ${renderGoString(service.name)}, procedureName: ${renderGoString(procedure.name)}}`
+      `return &${builderName}{client: registry.intClient, headerProviders: []HeaderProvider{}, rpcName: ${renderGoString(service.name)}, procName: ${renderGoString(proc.name)}}`
     );
   });
   g.line("}");
   g.break();
   writeComment(
     g,
-    `${builderName} configures and executes calls to the ${service.name}.${procedure.name} procedure.`
+    `${builderName} configures and executes calls to the ${service.name}.${proc.name} procedure.`
   );
   g.line(`type ${builderName} struct {`);
   g.block(() => {
     g.line("rpcName string");
-    g.line("procedureName string");
+    g.line("procName string");
     g.line("client *internalClient");
     g.line("headerProviders []HeaderProvider");
     g.line("retryConf *RetryConfig");
@@ -1838,7 +1832,7 @@ function renderClientProcedure(service, procedure, context) {
   g.break();
   writeComment(
     g,
-    `WithHeader adds a static header to the ${service.name}.${procedure.name} procedure call.`
+    `WithHeader adds a static header to the ${service.name}.${proc.name} procedure call.`
   );
   g.line(
     `func (b *${builderName}) WithHeader(key string, value string) *${builderName} {`
@@ -1858,7 +1852,7 @@ function renderClientProcedure(service, procedure, context) {
   g.break();
   writeComment(
     g,
-    `WithHeaderProvider adds a dynamic header provider to the ${service.name}.${procedure.name} procedure call.`
+    `WithHeaderProvider adds a dynamic header provider to the ${service.name}.${proc.name} procedure call.`
   );
   g.line(
     `func (b *${builderName}) WithHeaderProvider(provider HeaderProvider) *${builderName} {`
@@ -1871,7 +1865,7 @@ function renderClientProcedure(service, procedure, context) {
   g.break();
   writeComment(
     g,
-    `WithRetryConfig overrides retry behavior for the ${service.name}.${procedure.name} procedure call.`
+    `WithRetryConfig overrides retry behavior for the ${service.name}.${proc.name} procedure call.`
   );
   g.line(
     `func (b *${builderName}) WithRetryConfig(conf RetryConfig) *${builderName} {`
@@ -1884,7 +1878,7 @@ function renderClientProcedure(service, procedure, context) {
   g.break();
   writeComment(
     g,
-    `WithTimeoutConfig overrides timeout behavior for the ${service.name}.${procedure.name} procedure call.`
+    `WithTimeoutConfig overrides timeout behavior for the ${service.name}.${proc.name} procedure call.`
   );
   g.line(
     `func (b *${builderName}) WithTimeoutConfig(conf TimeoutConfig) *${builderName} {`
@@ -1897,26 +1891,26 @@ function renderClientProcedure(service, procedure, context) {
   g.break();
   writeComment(
     g,
-    `Execute sends a request to the ${service.name}.${procedure.name} procedure.`
+    `Execute sends a request to the ${service.name}.${proc.name} procedure.`
   );
   g.line(
     `func (b *${builderName}) Execute(ctx context.Context, input ${inputType}) (${outputType}, error) {`
   );
   g.block(() => {
     g.line(
-      "raw := b.client.proc(ctx, b.rpcName, b.procedureName, input, b.headerProviders, b.retryConf, b.timeoutConf)"
+      "raw := b.client.proc(ctx, b.rpcName, b.procName, input, b.headerProviders, b.retryConf, b.timeoutConf)"
     );
     g.line("if !raw.Ok {");
     g.block(() => {
       g.line(`return ${outputType}{}, raw.Error`);
     });
     g.line("}");
-    if (procedure.outputTypeName) {
+    if (proc.outputTypeName) {
       g.line(`var out ${outputType}`);
       g.line("if err := json.Unmarshal(raw.Output, &out); err != nil {");
       g.block(() => {
         g.line(
-          `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${procedure.name} output: %v", err)}`
+          `return ${outputType}{}, Error{Message: fmt.Sprintf("failed to decode ${service.name}.${proc.name} output: %v", err)}`
         );
       });
       g.line("}");
@@ -1928,18 +1922,18 @@ function renderClientProcedure(service, procedure, context) {
   g.line("}");
   return g.toString();
 }
-__name(renderClientProcedure, "renderClientProcedure");
+__name(renderClientProc, "renderClientProc");
 function writeComment(g, summary, doc, deprecated) {
   g.raw(renderCommentBlock({ summary, doc, deprecated }));
   g.break();
 }
 __name(writeComment, "writeComment");
-function getClientInputType(procedure, context) {
-  return procedure.inputTypeName ? `${getTypesQualifier(context)}${procedure.inputTypeName}` : "Void";
+function getClientInputType(proc, context) {
+  return proc.inputTypeName ? `${getTypesQualifier(context)}${proc.inputTypeName}` : "Void";
 }
 __name(getClientInputType, "getClientInputType");
-function getClientOutputType(procedure, context) {
-  return procedure.outputTypeName ? `${getTypesQualifier(context)}${procedure.outputTypeName}` : "Void";
+function getClientOutputType(proc, context) {
+  return proc.outputTypeName ? `${getTypesQualifier(context)}${proc.outputTypeName}` : "Void";
 }
 __name(getClientOutputType, "getClientOutputType");
 function getTypesQualifier(context) {
@@ -2051,21 +2045,21 @@ var SERVER_RUNTIME = dedent2(
 		Context context.Context
 		// Annotations is a slice of annotation objects associated with the request.
 		Annotations []Annotation
-		// procedure is the details of the RPC procedure including its RPC name and procedure name.
-		procedure ProcedureDefinition
+		// proc holds the details of the RPC procedure including its RPC name and procedure name.
+		proc ProcDefinition
 	}
 
 	// RPCName returns the name of the RPC service
-	func (h *HandlerContext[T, I]) RPCName() string { return h.procedure.RPCName }
+	func (h *HandlerContext[T, I]) RPCName() string { return h.proc.RPCName }
 
-	// ProcedureName returns the name of the procedure (e.g. "CreateUser", "GetPost", etc.)
-	func (h *HandlerContext[T, I]) ProcedureName() string { return h.procedure.Name }
+	// ProcName returns the name of the procedure (e.g. "CreateUser", "GetPost", etc.)
+	func (h *HandlerContext[T, I]) ProcName() string { return h.proc.Name }
 
 	// RPCRoute returns the lowerFirst transport segment for the RPC service.
-	func (h *HandlerContext[T, I]) RPCRoute() string { return h.procedure.RPCRoute }
+	func (h *HandlerContext[T, I]) RPCRoute() string { return h.proc.RPCRoute }
 
 	// Path returns the VPP-2 transport path for the current procedure.
-	func (h *HandlerContext[T, I]) Path() string { return h.procedure.Path }
+	func (h *HandlerContext[T, I]) Path() string { return h.proc.Path }
 
 	// InputAs returns the request input as O and reports whether it holds that type.
 	// Use it in global middleware and error handlers, where Input is any.
@@ -2107,7 +2101,7 @@ var SERVER_RUNTIME = dedent2(
 	// ErrorHandlerFunc transforms an internal error into a public error envelope.
 	//
 	// The handler receives the full request context, enabling structured logging
-	// with access to Props, RPC Name, Procedure Name, and other metadata.
+	// with access to Props, RPC Name, Proc Name, and other metadata.
 	//
 	//   - T: Application-defined context type (props).
 	type ErrorHandlerFunc[T any] func(c *HandlerContext[T, any], err error) Error
@@ -2133,9 +2127,9 @@ var SERVER_RUNTIME = dedent2(
 		// handlersMu protects all handler maps and middleware slices from concurrent access
 		handlersMu sync.RWMutex
 
-		// procedureDefs contains the definition of all registered procedures.
-		// Map format: rpcName -> procedureName -> ProcedureDefinition.
-		procedureDefs map[string]map[string]ProcedureDefinition
+		// procDefs contains the definition of all registered procedures.
+		// Map format: rpcName -> procName -> ProcDefinition.
+		procDefs map[string]map[string]ProcDefinition
 
 		// procHandlers stores the final implementation functions for procedures
 		// Map format: rpcName -> procName -> handler
@@ -2181,9 +2175,9 @@ var SERVER_RUNTIME = dedent2(
 	//   - T: Application-defined context type (props).
 	//
 	// Returns a new internalServer instance ready for handler and middleware registration.
-	func newInternalServer[T any](procDefs []ProcedureDefinition) *internalServer[T] {
+	func newInternalServer[T any](defs []ProcDefinition) *internalServer[T] {
 		// Initialize maps
-		procedureDefs := make(map[string]map[string]ProcedureDefinition)
+		procDefs := make(map[string]map[string]ProcDefinition)
 		procHandlers := make(map[string]map[string]ProcHandlerFunc[T, any, any])
 		rpcMiddlewares := make(map[string][]GlobalMiddlewareFunc[T])
 		procMiddlewares := make(map[string]map[string][]ProcMiddlewareFunc[T, any, any])
@@ -2192,22 +2186,22 @@ var SERVER_RUNTIME = dedent2(
 
 		// Helper to ensure RPC map existence
 		ensureRPC := func(rpcName string) {
-			if _, ok := procedureDefs[rpcName]; !ok {
-				procedureDefs[rpcName] = make(map[string]ProcedureDefinition)
+			if _, ok := procDefs[rpcName]; !ok {
+				procDefs[rpcName] = make(map[string]ProcDefinition)
 				procHandlers[rpcName] = make(map[string]ProcHandlerFunc[T, any, any])
 				procMiddlewares[rpcName] = make(map[string][]ProcMiddlewareFunc[T, any, any])
 				procDeserializers[rpcName] = make(map[string]deserializerFunc)
 			}
 		}
 
-		for _, def := range procDefs {
+		for _, def := range defs {
 			ensureRPC(def.RPCName)
-			procedureDefs[def.RPCName][def.Name] = def
+			procDefs[def.RPCName][def.Name] = def
 		}
 
 		built := &internalServer[T]{
 			handlersMu:         sync.RWMutex{},
-			procedureDefs:      procedureDefs,
+			procDefs:						procDefs,
 			procHandlers:       procHandlers,
 			globalMiddlewares:  []GlobalMiddlewareFunc[T]{},
 			rpcMiddlewares:     rpcMiddlewares,
@@ -2324,7 +2318,7 @@ var SERVER_RUNTIME = dedent2(
 	//   - ctx: The request context
 	//   - props: The VDL context containing user-defined data
 	//   - rpcName: The RPC service name from the request URL (lowerFirst form)
-	//   - procedureName: The name of the procedure to invoke
+	//   - procName: The name of the procedure to invoke
 	//   - httpAdapter: The HTTP adapter for reading requests and writing responses
 	//
 	// Returns an error if request processing fails at the transport level.
@@ -2332,7 +2326,7 @@ var SERVER_RUNTIME = dedent2(
 		ctx context.Context,
 		props T,
 		rpcName string,
-		procedureName string,
+		procName string,
 		httpAdapter HTTPAdapter,
 	) error {
 		if httpAdapter == nil {
@@ -2385,11 +2379,11 @@ var SERVER_RUNTIME = dedent2(
 			}
 		}
 
-		procedure, canonicalRPC, canonicalProcedure, procedureExists := s.lookupProcedure(rpcName, procedureName)
-		if !procedureExists {
+		proc, canonicalRPC, canonicalProc, procExists := s.lookupProc(rpcName, procName)
+		if !procExists {
 			res := Response[any]{
 				Ok:    false,
-				Error: Error{Message: fmt.Sprintf("Invalid procedure: %s.%s", rpcName, procedureName)},
+				Error: Error{Message: fmt.Sprintf("Invalid procedure: %s.%s", rpcName, procName)},
 			}
 			return s.writeProcResponse(httpAdapter, res)
 		}
@@ -2399,18 +2393,18 @@ var SERVER_RUNTIME = dedent2(
 			Input:   rawInput,
 			Props:   props,
 			Context: ctx,
-			Annotations: cloneAnnotations(procedure.Annotations),
-			procedure: ProcedureDefinition{
-				RPCName:      procedure.RPCName,
-				RPCRoute:     procedure.RPCRoute,
-				Name:         procedure.Name,
-				Path:         procedure.Path,
-				Annotations:  cloneAnnotations(procedure.Annotations),
+			Annotations: cloneAnnotations(proc.Annotations),
+			proc: ProcDefinition{
+				RPCName:      proc.RPCName,
+				RPCRoute:     proc.RPCRoute,
+				Name:         proc.Name,
+				Path:         proc.Path,
+				Annotations:  cloneAnnotations(proc.Annotations),
 			},
 		}
 
-		// Handle Procedure
-		output, err := s.handleProcRequest(c, canonicalRPC, canonicalProcedure, rawInput)
+		// Handle Proc
+		output, err := s.handleProcRequest(c, canonicalRPC, canonicalProc, rawInput)
 		response := Response[any]{}
 		if err != nil {
 			response.Ok = false
@@ -2424,21 +2418,21 @@ var SERVER_RUNTIME = dedent2(
 		return s.writeProcResponse(httpAdapter, response)
 	}
 
-	// lookupProcedure resolves an incoming route to its canonical procedure definition.
+	// lookupProc resolves an incoming route to its canonical procedure definition.
 	//
 	// The RPC segment matches the VPP-2 lowerFirst transport form. The canonical
 	// VDL service name is returned for handler and middleware lookup.
-	func (s *internalServer[T]) lookupProcedure(rpcName string, procedureName string) (ProcedureDefinition, string, string, bool) {
+	func (s *internalServer[T]) lookupProc(rpcName string, procName string) (ProcDefinition, string, string, bool) {
 		s.handlersMu.RLock()
 		defer s.handlersMu.RUnlock()
-		for canonicalRPC, procedures := range s.procedureDefs {
-			if procedure, ok := procedures[procedureName]; ok {
-				if canonicalRPC == rpcName || procedure.RPCRoute == rpcName {
-					return procedure, canonicalRPC, procedureName, true
+		for canonicalRPC, procs := range s.procDefs {
+			if proc, ok := procs[procName]; ok {
+				if canonicalRPC == rpcName || proc.RPCRoute == rpcName {
+					return proc, canonicalRPC, procName, true
 				}
 			}
 		}
-		return ProcedureDefinition{}, "", "", false
+		return ProcDefinition{}, "", "", false
 	}
 
 	// handleProcRequest builds the per-request middleware chain for a procedure and executes it.
@@ -2551,7 +2545,7 @@ var SERVER_RUNTIME = dedent2(
 	//   }
 	//   s := NewServer[AppProps]()
 	func NewServer[T any]() *Server[T] {
-		intServer := newInternalServer[T](VDLProcedures)
+		intServer := newInternalServer[T](VDLProcs)
 		return &Server[T]{
 			intServer: intServer,
 			RPCs: newServerRPCRegistry(intServer),
@@ -2589,20 +2583,20 @@ var SERVER_RUNTIME = dedent2(
 	// HandleRequest processes an incoming RPC request and drives the complete
 	// request lifecycle (parsing, middleware chains, handler dispatch, response).
 	//
-	// rpcName and procedureName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
+	// rpcName and procName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
 	//
 	// httpAdapter bridges VDL RPC with your HTTP framework (use NewNetHTTPAdapter for net/http or compatible).
 	//
 	// Example (net/http):
 	//
-	//   http.HandleFunc("POST /rpc/{rpcName}/{procedureName}", func(w http.ResponseWriter, r *http.Request) {
+	//   http.HandleFunc("POST /rpc/{rpcName}/{procName}", func(w http.ResponseWriter, r *http.Request) {
 	//       ctx := r.Context()
 	//       props := AppProps{UserID: "abc"}
 	//       adapter := NewNetHTTPAdapter(w, r)
-	//       _ = server.HandleRequest(ctx, props, r.PathValue("rpcName"), r.PathValue("procedureName"), adapter)
+	//       _ = server.HandleRequest(ctx, props, r.PathValue("rpcName"), r.PathValue("procName"), adapter)
 	//   })
-	func (s *Server[T]) HandleRequest(ctx context.Context, props T, rpcName string, procedureName string, httpAdapter HTTPAdapter) error {
-		return s.intServer.handleRequest(ctx, props, rpcName, procedureName, httpAdapter)
+	func (s *Server[T]) HandleRequest(ctx context.Context, props T, rpcName string, procName string, httpAdapter HTTPAdapter) error {
+		return s.intServer.handleRequest(ctx, props, rpcName, procName, httpAdapter)
 	}
 
 	// PropsFunc builds request-scoped props from the incoming HTTP request.
@@ -2673,9 +2667,7 @@ function generateServerFile(context) {
 __name(generateServerFile, "generateServerFile");
 function renderServerImports(context) {
   const needsTypesImport = context.services.some(
-    (service) => service.procedures.some(
-      (procedure) => procedure.inputTypeName || procedure.outputTypeName
-    )
+    (service) => service.procs.some((proc) => proc.inputTypeName || proc.outputTypeName)
   );
   const hasExternalTypesImport = context.options.typesImport.length > 0;
   const g = newGenerator().withTabs();
@@ -2772,32 +2764,30 @@ function renderServerService(service, context) {
   });
   g.line("}");
   g.break();
-  for (const procedure of service.procedures) {
+  for (const proc of service.procs) {
     g.break();
     g.break();
-    g.raw(renderServerProcedure(service, procedure, context));
+    g.raw(renderServerProc(service, proc, context));
   }
   return g.toString();
 }
 __name(renderServerService, "renderServerService");
-function renderServerProcedure(service, procedure, context) {
+function renderServerProc(service, proc, context) {
   const registryName = `server${service.goName}Procs`;
-  const entryName = `proc${procedure.procedureTypeName}Entry`;
-  const handlerContextName = `${procedure.procedureTypeName}HandlerContext`;
-  const handlerFuncName = `${procedure.procedureTypeName}HandlerFunc`;
-  const middlewareFuncName = `${procedure.procedureTypeName}MiddlewareFunc`;
-  const inputType = getServerInputType(procedure, context);
-  const outputType = getServerOutputType(procedure, context);
+  const entryName = `proc${proc.procTypeName}Entry`;
+  const handlerContextName = `${proc.procTypeName}HandlerContext`;
+  const handlerFuncName = `${proc.procTypeName}HandlerFunc`;
+  const middlewareFuncName = `${proc.procTypeName}MiddlewareFunc`;
+  const inputType = getServerInputType(proc, context);
+  const outputType = getServerOutputType(proc, context);
   const g = newGenerator().withTabs();
   writeComment2(
     g,
-    `${procedure.goName} returns the registration entry for the ${service.name}.${procedure.name} procedure.`,
-    procedure.doc,
-    procedure.deprecated
+    `${proc.goName} returns the registration entry for the ${service.name}.${proc.name} procedure.`,
+    proc.doc,
+    proc.deprecated
   );
-  g.line(
-    `func (r *${registryName}[T]) ${procedure.goName}() ${entryName}[T] {`
-  );
+  g.line(`func (r *${registryName}[T]) ${proc.goName}() ${entryName}[T] {`);
   g.block(() => {
     g.line(`return ${entryName}[T]{intServer: r.intServer}`);
   });
@@ -2805,7 +2795,7 @@ function renderServerProcedure(service, procedure, context) {
   g.break();
   writeComment2(
     g,
-    `${entryName} contains the generated registration API for the ${service.name}.${procedure.name} procedure.`
+    `${entryName} contains the generated registration API for the ${service.name}.${proc.name} procedure.`
   );
   g.line(`type ${entryName}[T any] struct {`);
   g.block(() => {
@@ -2815,13 +2805,13 @@ function renderServerProcedure(service, procedure, context) {
   g.break();
   writeComment2(
     g,
-    `${handlerContextName} is the typed handler context passed to ${service.name}.${procedure.name} procedure handlers.`
+    `${handlerContextName} is the typed handler context passed to ${service.name}.${proc.name} procedure handlers.`
   );
   g.line(`type ${handlerContextName}[T any] = HandlerContext[T, ${inputType}]`);
   g.break();
   writeComment2(
     g,
-    `${handlerFuncName} is the typed handler signature for the ${service.name}.${procedure.name} procedure.`
+    `${handlerFuncName} is the typed handler signature for the ${service.name}.${proc.name} procedure.`
   );
   g.line(
     `type ${handlerFuncName}[T any] func(c *${handlerContextName}[T]) (${outputType}, error)`
@@ -2829,7 +2819,7 @@ function renderServerProcedure(service, procedure, context) {
   g.break();
   writeComment2(
     g,
-    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${procedure.name} procedure.`
+    `${middlewareFuncName} is the typed middleware signature for the ${service.name}.${proc.name} procedure.`
   );
   g.line(
     `type ${middlewareFuncName}[T any] func(next ${handlerFuncName}[T]) ${handlerFuncName}[T]`
@@ -2837,7 +2827,7 @@ function renderServerProcedure(service, procedure, context) {
   g.break();
   writeComment2(
     g,
-    `Use registers typed middleware for the ${service.name}.${procedure.name} procedure.`
+    `Use registers typed middleware for the ${service.name}.${proc.name} procedure.`
   );
   g.line(`func (e ${entryName}[T]) Use(mw ${middlewareFuncName}[T]) {`);
   g.block(() => {
@@ -2864,7 +2854,7 @@ function renderServerProcedure(service, procedure, context) {
           g.line("if !ok {");
           g.block(() => {
             g.line(
-              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${procedure.name}", genericOutput)`
+              `return ${outputType}{}, fmt.Errorf("vdl rpc: internal error: unexpected output type %T for ${service.name}.${proc.name}", genericOutput)`
             );
           });
           g.line("}");
@@ -2876,7 +2866,7 @@ function renderServerProcedure(service, procedure, context) {
         g.line("if !ok {");
         g.block(() => {
           g.line(
-            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`
+            `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${proc.name}", cGeneric.Input)`
           );
         });
         g.line("}");
@@ -2886,7 +2876,7 @@ function renderServerProcedure(service, procedure, context) {
           g.line("Input: typedInput,");
           g.line("Context: cGeneric.Context,");
           g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-          g.line("procedure: cGeneric.procedure,");
+          g.line("proc: cGeneric.proc,");
         });
         g.line("}");
         g.line("return typedChain(cSpecific)");
@@ -2895,14 +2885,14 @@ function renderServerProcedure(service, procedure, context) {
     });
     g.line("}");
     g.line(
-      `e.intServer.addProcMiddleware(${renderGoString(service.name)}, ${renderGoString(procedure.name)}, adapted)`
+      `e.intServer.addProcMiddleware(${renderGoString(service.name)}, ${renderGoString(proc.name)}, adapted)`
     );
   });
   g.line("}");
   g.break();
   writeComment2(
     g,
-    `Handle registers the typed business handler for the ${service.name}.${procedure.name} procedure.`
+    `Handle registers the typed business handler for the ${service.name}.${proc.name} procedure.`
   );
   g.line(`func (e ${entryName}[T]) Handle(handler ${handlerFuncName}[T]) {`);
   g.block(() => {
@@ -2914,7 +2904,7 @@ function renderServerProcedure(service, procedure, context) {
       g.line("if !ok {");
       g.block(() => {
         g.line(
-          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${procedure.name}", cGeneric.Input)`
+          `return nil, fmt.Errorf("vdl rpc: internal error: unexpected input type %T for ${service.name}.${proc.name}", cGeneric.Input)`
         );
       });
       g.line("}");
@@ -2924,10 +2914,10 @@ function renderServerProcedure(service, procedure, context) {
         g.line("Input: typedInput,");
         g.line("Context: cGeneric.Context,");
         g.line("Annotations: cloneAnnotations(cGeneric.Annotations),");
-        g.line("procedure: cGeneric.procedure,");
+        g.line("proc: cGeneric.proc,");
       });
       g.line("}");
-      if (procedure.outputTypeName) {
+      if (proc.outputTypeName) {
         g.line("return handler(cSpecific)");
       } else {
         g.line("if _, err := handler(cSpecific); err != nil {");
@@ -2941,7 +2931,7 @@ function renderServerProcedure(service, procedure, context) {
     g.line("}");
     g.line(`deserializer := func(raw json.RawMessage) (any, error) {`);
     g.block(() => {
-      if (procedure.inputTypeName) {
+      if (proc.inputTypeName) {
         g.line("if len(bytes.TrimSpace(raw)) == 0 {");
         g.block(() => {
           g.line('raw = json.RawMessage("{}")');
@@ -2951,7 +2941,7 @@ function renderServerProcedure(service, procedure, context) {
         g.line("if err := json.Unmarshal(raw, &input); err != nil {");
         g.block(() => {
           g.line(
-            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${procedure.name} input: %w", err)`
+            `return nil, fmt.Errorf("failed to unmarshal ${service.name}.${proc.name} input: %w", err)`
           );
         });
         g.line("}");
@@ -2962,24 +2952,24 @@ function renderServerProcedure(service, procedure, context) {
     });
     g.line("}");
     g.line(
-      `e.intServer.setProcHandler(${renderGoString(service.name)}, ${renderGoString(procedure.name)}, adaptedHandler, deserializer)`
+      `e.intServer.setProcHandler(${renderGoString(service.name)}, ${renderGoString(proc.name)}, adaptedHandler, deserializer)`
     );
   });
   g.line("}");
   return g.toString();
 }
-__name(renderServerProcedure, "renderServerProcedure");
+__name(renderServerProc, "renderServerProc");
 function writeComment2(g, summary, doc, deprecated) {
   g.raw(renderCommentBlock({ summary, doc, deprecated }));
   g.break();
 }
 __name(writeComment2, "writeComment");
-function getServerInputType(procedure, context) {
-  return procedure.inputTypeName ? `${getTypesQualifier2(context)}${procedure.inputTypeName}` : "Void";
+function getServerInputType(proc, context) {
+  return proc.inputTypeName ? `${getTypesQualifier2(context)}${proc.inputTypeName}` : "Void";
 }
 __name(getServerInputType, "getServerInputType");
-function getServerOutputType(procedure, context) {
-  return procedure.outputTypeName ? `${getTypesQualifier2(context)}${procedure.outputTypeName}` : "Void";
+function getServerOutputType(proc, context) {
+  return proc.outputTypeName ? `${getTypesQualifier2(context)}${proc.outputTypeName}` : "Void";
 }
 __name(getServerOutputType, "getServerOutputType");
 function getTypesQualifier2(context) {
@@ -2989,7 +2979,7 @@ __name(getTypesQualifier2, "getTypesQualifier");
 
 // src/stages/emit/generate-files.ts
 function generateFiles(context) {
-  if (context.procedures.length === 0) {
+  if (context.procs.length === 0) {
     return [];
   }
   return [
@@ -3035,9 +3025,9 @@ function createGeneratorContext(options) {
     }
     services.push(buildServiceDescriptor(typeDef));
   }
-  const procedures = [];
+  const procs = [];
   for (const service of services) {
-    procedures.push(...service.procedures);
+    procs.push(...service.procs);
   }
   return {
     errors: [],
@@ -3046,18 +3036,18 @@ function createGeneratorContext(options) {
       schema: options.input.ir,
       options: options.generatorOptions,
       services,
-      procedures
+      procs
     }
   };
 }
 __name(createGeneratorContext, "createGeneratorContext");
 function buildServiceDescriptor(typeDef) {
   var _a3;
-  const proceduresLocal = [];
+  const procLocals = [];
   for (const field of (_a3 = typeDef.typeRef.objectFields) != null ? _a3 : []) {
-    const procedure = buildProcedureDescriptor(typeDef, field);
-    if (procedure) {
-      proceduresLocal.push(procedure);
+    const proc = buildProcDescriptor(typeDef, field);
+    if (proc) {
+      procLocals.push(proc);
     }
   }
   return {
@@ -3067,27 +3057,27 @@ function buildServiceDescriptor(typeDef) {
     doc: typeDef.doc,
     deprecated: deprecationNote(typeDef.annotations),
     annotations: typeDef.annotations,
-    procedures: proceduresLocal
+    procs: procLocals
   };
 }
 __name(buildServiceDescriptor, "buildServiceDescriptor");
-function buildProcedureDescriptor(serviceType, field) {
+function buildProcDescriptor(serviceType, field) {
   if (!getAnnotation(field.annotations, "proc")) {
     return void 0;
   }
-  const inputField = findProcedureField(field, "input");
-  const outputField = findProcedureField(field, "output");
+  const inputField = findProcField(field, "input");
+  const outputField = findProcField(field, "output");
   const rpcGoName = toGoTypeName(serviceType.name);
   const goName = toGoFieldName(field.name);
-  const procedureTypeName = toInlineTypeName(rpcGoName, field.name);
+  const procTypeName = toInlineTypeName(rpcGoName, field.name);
   return {
     rpcName: serviceType.name,
     rpcGoName,
     name: field.name,
     goName,
-    procedureTypeName,
-    inputTypeName: inputField ? toInlineTypeName(procedureTypeName, inputField.name) : void 0,
-    outputTypeName: outputField ? toInlineTypeName(procedureTypeName, outputField.name) : void 0,
+    procTypeName,
+    inputTypeName: inputField ? toInlineTypeName(procTypeName, inputField.name) : void 0,
+    outputTypeName: outputField ? toInlineTypeName(procTypeName, outputField.name) : void 0,
     position: field.position,
     doc: field.doc,
     deprecated: deprecationNote(field.annotations),
@@ -3098,14 +3088,12 @@ function buildProcedureDescriptor(serviceType, field) {
     outputField
   };
 }
-__name(buildProcedureDescriptor, "buildProcedureDescriptor");
-function findProcedureField(procedureField, name) {
+__name(buildProcDescriptor, "buildProcDescriptor");
+function findProcField(procField, name) {
   var _a3;
-  return (_a3 = procedureField.typeRef.objectFields) == null ? void 0 : _a3.find(
-    (field) => field.name === name
-  );
+  return (_a3 = procField.typeRef.objectFields) == null ? void 0 : _a3.find((field) => field.name === name);
 }
-__name(findProcedureField, "findProcedureField");
+__name(findProcField, "findProcField");
 function deprecationNote(annotations) {
   var _a3;
   if (!isDeprecated(annotations)) {

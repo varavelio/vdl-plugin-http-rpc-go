@@ -56,7 +56,7 @@ func main() {
 
 	var sawStaleProbe atomic.Bool
 	client := rpcclient.NewClient(ts.URL + "/rpc").WithInterceptor(func(ctx context.Context, req rpcclient.RequestInfo, next rpcclient.Invoker) (rpcclient.Response[json.RawMessage], error) {
-		if req.ProcedureName == "create" {
+		if req.ProcName == "create" {
 			sawStaleProbe.Store(sawStaleProbe.Load() || hasAnnotationKey(req.Annotations, "probe"))
 			for _, annotation := range req.Annotations {
 				if argument, ok := annotation.Argument.(map[string]any); ok {

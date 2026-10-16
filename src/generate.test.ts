@@ -253,7 +253,7 @@ describe("generate", () => {
       "func (r RequestInfo) InputAs[O any]() (O, bool)",
     );
     expect(client.files?.[0]?.content).toContain(
-      "func (b *clientBuilder) WithMaxResponseBodyBytes(n int64) *clientBuilder",
+      "func (b *ClientBuilder) WithMaxResponseBodyBytes(n int64) *ClientBuilder",
     );
     expect(client.files?.[0]?.content).toContain("response body too large");
     expect(client.files?.[0]?.content).toContain("if response == nil {");
