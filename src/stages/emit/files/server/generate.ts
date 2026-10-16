@@ -49,7 +49,6 @@ function renderServerImports(context: GeneratorContext): string {
   g.block(() => {
     g.line('"bytes"');
     g.line('"context"');
-    g.line('"errors"');
     g.line(`json ${renderGoString(context.options.jsonPackage)}`);
     g.line('"fmt"');
     g.line('"io"');

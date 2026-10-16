@@ -224,10 +224,8 @@ Non-`POST` requests get `405`, paths without exactly two segments get `404`.
 Generated servers fail closed by default:
 
 - Request bodies cap at 4 MiB per call (`Server.SetMaxRequestBodyBytes` tunes
-  it, `<= 0` restores the default). Oversized bodies return
-  `ErrRequestBodyTooLarge` before any middleware or handler runs; `HTTPHandler`
-  maps it to `413`. Manual `HandleRequest` wiring should check it with
-  `errors.Is`.
+  it, `<= 0` restores the default). Oversized bodies get an `ok:false`
+  envelope before any middleware or handler runs, on every wiring style.
 - Bodies must hold exactly one JSON value; trailing garbage is rejected as an
   invalid body.
 - Input shapes validate through the generated `vdl-plugin-go` types before

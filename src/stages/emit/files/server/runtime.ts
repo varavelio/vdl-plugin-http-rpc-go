@@ -186,11 +186,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   // client cannot exhaust the server with a huge payload.
   const defaultMaxRequestBodyBytes = 4 << 20
 
-  // ErrRequestBodyTooLarge reports a body beyond the configured limit.
-  // HandleRequest returns it without writing a response; HTTPHandler maps it
-  // to 413. Manual wiring should check it with errors.Is before responding.
-  var ErrRequestBodyTooLarge = errors.New("vdl rpc: request body too large")
-
   type internalServer[T any] struct {
     // handlersMu protects all handler maps and middleware slices from concurrent access
     handlersMu sync.RWMutex
@@ -402,7 +397,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 
     // Read the bounded body first so a hostile client cannot exhaust memory.
     // An empty body stays valid empty input per VPP-2. Oversized bodies fail
-    // closed with ErrRequestBodyTooLarge before any handler runs.
+    // closed with an ok:false envelope before any handler runs.
     maxBody := s.maxRequestBodyBytes.Load()
     raw, readErr := io.ReadAll(io.LimitReader(httpAdapter.RequestBody(), maxBody+1))
     if readErr != nil {
@@ -413,7 +408,11 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       return s.writeProcResponse(httpAdapter, res)
     }
     if int64(len(raw)) > maxBody {
-      return ErrRequestBodyTooLarge
+      res := Response[any]{
+        Ok:    false,
+        Error: Error{Message: "Request body too large"},
+      }
+      return s.writeProcResponse(httpAdapter, res)
     }
 
     var rawInput json.RawMessage
@@ -630,7 +629,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
   }
 
 	// SetMaxRequestBodyBytes caps request body bytes accepted per procedure call.
-	// Bodies beyond the cap fail closed with ErrRequestBodyTooLarge before any
+	// Bodies beyond the cap fail closed with an ok:false envelope before any
 	// handler or middleware runs. Values <= 0 restore the 4 MiB default.
 	func (s *Server[T]) SetMaxRequestBodyBytes(n int64) {
 		if n <= 0 {
@@ -645,10 +644,6 @@ export const SERVER_RUNTIME = dedent(/* go */ `
 	// rpcName and procedureName must be extracted from the request URL (e.g. /rpc/MyService/GetUser -> "MyService", "GetUser").
   //
 	// httpAdapter bridges VDL RPC with your HTTP framework (use NewNetHTTPAdapter for net/http or compatible).
-	//
-	// It returns ErrRequestBodyTooLarge without writing a response when the body
-	// exceeds the limit; callers wiring HandleRequest manually should map it
-	// (HTTPHandler already maps it to 413).
 	//
 	// Example (net/http):
   //
@@ -699,11 +694,7 @@ export const SERVER_RUNTIME = dedent(/* go */ `
       }
 
       adapter := NewNetHTTPAdapter(w, r)
-      if err := s.HandleRequest(r.Context(), propsFn(r), segments[0], segments[1], adapter); err != nil {
-        if errors.Is(err, ErrRequestBodyTooLarge) {
-          http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
-        }
-      }
+      _ = s.HandleRequest(r.Context(), propsFn(r), segments[0], segments[1], adapter)
     })
   }
 

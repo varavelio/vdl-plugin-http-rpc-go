@@ -36,20 +36,25 @@ func main() {
 			return appProps{User: r.Header.Get("X-User")}
 		})),
 	)
+	mux.HandleFunc("POST /manual/{rpc}/{operation}", func(w http.ResponseWriter, r *http.Request) {
+		adapter := rpcserver.NewNetHTTPAdapter(w, r)
+		_ = server.HandleRequest(r.Context(), appProps{User: r.Header.Get("X-User")}, r.PathValue("rpc"), r.PathValue("operation"), adapter)
+	})
 
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
 	client := rpcclient.NewClient(ts.URL+"/rpc").WithHeader("X-User", "gopher").Build()
-	// Default 4 MiB cap fails closed with 413 before any handler runs.
-	expectStatusRaw(ts.URL+"/rpc/service/echo", bytes.Repeat([]byte("x"), 5<<20), http.StatusRequestEntityTooLarge)
+	// Oversized bodies fail closed with ok:false before any handler runs, on both wirings.
+	expectBodyRaw(ts.URL+"/rpc/service/echo", bytes.Repeat([]byte("x"), 5<<20), `{"ok":false,`)
+	expectBodyRaw(ts.URL+"/manual/service/echo", bytes.Repeat([]byte("x"), 5<<20), `{"ok":false,`)
 	if echoed {
 		panic("handler ran for oversized body")
 	}
 
 	// The cap is tunable per server.
 	server.SetMaxRequestBodyBytes(64)
-	expectStatusRaw(ts.URL+"/rpc/service/echo", bytes.Repeat([]byte(`{"data":"hi"}`), 8), http.StatusRequestEntityTooLarge)
+	expectBodyRaw(ts.URL+"/rpc/service/echo", bytes.Repeat([]byte(`{"data":"hi"}`), 8), `{"ok":false,`)
 	if echoed {
 		panic("handler ran for over-cap body")
 	}
@@ -96,22 +101,6 @@ func expectStatus(url string, method string, body string, expected int) {
 	defer resp.Body.Close()
 	if resp.StatusCode != expected {
 		panic(fmt.Sprintf("expected %d for %s %s, got %d", expected, method, url, resp.StatusCode))
-	}
-}
-
-func expectStatusRaw(url string, body []byte, expected int) {
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != expected {
-		panic(fmt.Sprintf("expected %d for %s, got %d", expected, url, resp.StatusCode))
 	}
 }
 
