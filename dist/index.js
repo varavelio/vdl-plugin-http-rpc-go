@@ -1961,8 +1961,7 @@ var SERVER_RUNTIME = dedent2(
 	// core functionality.
 	//
 	// Implementations must provide methods to read request bodies, set response headers,
-	// write response data, and flush the response buffer to ensure immediate delivery
-	// to the client.
+	// and write response data.
 	type HTTPAdapter interface {
 		// RequestBody returns the body reader for the incoming HTTP request.
 		// The returned io.Reader allows the server to read the request payload
@@ -1976,9 +1975,6 @@ var SERVER_RUNTIME = dedent2(
 		// Returns the number of bytes written and any error encountered.
 		// For procedures, this writes the complete JSON response.
 		Write(data []byte) (int, error)
-		// Flush immediately sends any buffered response data to the client.
-		// Returns an error if the flush operation fails.
-		Flush() error
 	}
 
 	// NetHTTPAdapter implements HTTPAdapter for Go's standard net/http package.
@@ -2027,16 +2023,6 @@ var SERVER_RUNTIME = dedent2(
 	// Returns the number of bytes written and any error encountered during writing.
 	func (r *NetHTTPAdapter) Write(data []byte) (int, error) {
 		return r.responseWriter.Write(data)
-	}
-
-	// Flush immediately sends any buffered response data to the client.
-	// Flush is a no-op when the writer does not support flushing.
-	// If the underlying ResponseWriter doesn't support flushing, this is a no-op.
-	func (r *NetHTTPAdapter) Flush() error {
-		if f, ok := r.responseWriter.(http.Flusher); ok {
-			f.Flush()
-		}
-		return nil
 	}
 
 	// -----------------------------------------------------------------------------
