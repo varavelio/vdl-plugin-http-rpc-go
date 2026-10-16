@@ -1,0 +1,20 @@
+@httpRpc
+@serviceTag("v1")
+type Service {
+  @proc
+  @audited
+  @quota({
+    max 100
+    burst true
+    tags ["a" "b"]
+  })
+  check {
+    input {
+      id string
+    }
+
+    output {
+      ok bool
+    }
+  }
+}
