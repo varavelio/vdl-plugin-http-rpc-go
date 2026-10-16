@@ -38,14 +38,14 @@ function renderProcedureCatalog(
     "VDLProcedures contains every generated procedure definition.";
 
   if (procedures.length === 0) {
-    const g = newGenerator();
+    const g = newGenerator().withTabs();
     g.line(renderCommentBlock({ summary }));
     g.line(`var ${constName} = []ProcedureDefinition{}`);
     return g.toString();
   }
 
   const entries = procedures.map((procedure) => {
-    const g = newGenerator();
+    const g = newGenerator().withTabs();
     g.line("{");
     g.block(() => {
       g.line(`RPCName: ${renderGoString(procedure.rpcName)},`);
@@ -62,7 +62,7 @@ function renderProcedureCatalog(
     return g.toString().trim();
   });
 
-  const g = newGenerator();
+  const g = newGenerator().withTabs();
   g.line(renderCommentBlock({ summary }));
   g.line(`var ${constName} = []ProcedureDefinition{`);
   g.block(() => {
@@ -78,7 +78,7 @@ function renderProcedureCatalog(
  * Renders a nested catalog of generated procedure paths.
  */
 function renderPathCatalog(services: ServiceDescriptor[]): string {
-  const g = newGenerator();
+  const g = newGenerator().withTabs();
   g.line(
     renderCommentBlock({
       summary:

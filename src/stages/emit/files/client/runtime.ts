@@ -74,9 +74,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	// Interceptor is middleware that wraps request execution.
 	type Interceptor func(ctx context.Context, req RequestInfo, next Invoker) (Response[json.RawMessage], error)
 
-  // -----------------------------------------------------------------------------
-  // Internal Client Implementation
-  // -----------------------------------------------------------------------------
+	// -----------------------------------------------------------------------------
+	// Internal Client Implementation
+	// -----------------------------------------------------------------------------
 
 	// internalClient is the core engine used by the generated client abstraction.
 	//
@@ -578,8 +578,8 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 	}
 
 	// -----------------------------------------------------------------------------
-  // Client Builder
-  // -----------------------------------------------------------------------------
+	// Client Builder
+	// -----------------------------------------------------------------------------
 
 	// clientBuilder collects configuration before a generated client is built.
 	type clientBuilder struct {
@@ -637,9 +637,9 @@ export const CLIENT_RUNTIME = dedent(/* go */ `
 		return &Client{RPCs: &clientRPCRegistry{intClient: intClient}}
 	}
 
-  // -----------------------------------------------------------------------------
-  // Client Implementation
-  // -----------------------------------------------------------------------------
+	// -----------------------------------------------------------------------------
+	// Client Implementation
+	// -----------------------------------------------------------------------------
 
 	// Client is the public entrypoint for generated RPC calls.
 	type Client struct {
